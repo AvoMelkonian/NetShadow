@@ -85,18 +85,26 @@ class NetShadowVpnService : VpnService() {
         }
     }
 
+    override fun onRevoke() {
+        Log.i(TAG, "VPN permission revoked")
+        stopVpn()
+        super.onRevoke()
+    }
+
     private fun stopVpn() {
         try {
             vpnInterface?.close()
         } catch (e: Exception) {
             Log.e(TAG, "Error closing VPN interface", e)
+        } finally {
+            vpnInterface = null
         }
-        vpnInterface = null
         stopForeground(STOP_FOREGROUND_REMOVE)
         stopSelf()
     }
 
     override fun onDestroy() {
+        Log.i(TAG, "Service being destroyed")
         stopVpn()
         super.onDestroy()
     }

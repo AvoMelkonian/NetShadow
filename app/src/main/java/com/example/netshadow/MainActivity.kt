@@ -4,9 +4,12 @@ import android.Manifest
 import android.app.Activity
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.net.Uri
 import android.net.VpnService
 import android.os.Build
 import android.os.Bundle
+import android.os.PowerManager
+import android.provider.Settings
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -30,7 +33,7 @@ class MainActivity : ComponentActivity() {
         ActivityResultContracts.StartActivityForResult()
     ) { result ->
         if (result.resultCode == Activity.RESULT_OK) {
-            checkNotificationPermissionAndStart()
+            checkBatteryOptimizationAndStart()
         } else {
             showDenialUI.value = true
         }
@@ -72,6 +75,22 @@ class MainActivity : ComponentActivity() {
         val intent = VpnService.prepare(this)
         if (intent != null) {
             vpnPrepareLauncher.launch(intent)
+        } else {
+            checkBatteryOptimizationAndStart()
+        }
+    }
+
+    private fun checkBatteryOptimizationAndStart() {
+        val pm = getSystemService(POWER_SERVICE) as PowerManager
+        if (!pm.isIgnoringBatteryOptimizations(packageName)) {
+            // Show explanation then request
+            Toast.makeText(this, "Please disable battery optimization for NetShadow to ensure stable monitoring.", Toast.LENGTH_LONG).show()
+            val intent = Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
+                data = Uri.parse("package:$packageName")
+            }
+            startActivity(intent)
+            // We proceed anyway, but user will see the system dialog
+            checkNotificationPermissionAndStart()
         } else {
             checkNotificationPermissionAndStart()
         }
