@@ -7,10 +7,14 @@ import android.content.Intent
 import android.content.pm.ServiceInfo
 import android.net.VpnService
 import android.os.Build
+import android.os.ParcelFileDescriptor
+import android.util.Log
 import androidx.core.app.NotificationCompat
 import com.example.netshadow.MainActivity
 
 class NetShadowVpnService : VpnService() {
+
+    private var vpnInterface: ParcelFileDescriptor? = null
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         if (intent?.action == ACTION_STOP) {
@@ -19,10 +23,35 @@ class NetShadowVpnService : VpnService() {
         }
 
         promoteToForeground()
-        
-        // TODO: Initialize VPN interface and capture logic here
+        setupVpnInterface()
         
         return START_STICKY
+    }
+
+    private fun setupVpnInterface() {
+        val builder = Builder()
+
+        try {
+            vpnInterface = builder
+                .addAddress("10.0.0.2", 32)
+                .addRoute("0.0.0.0", 0)
+                .addRoute("::", 0)
+                .addDnsServer("8.8.8.8")
+                .setMtu(1500)
+                .setBlocking(false)
+                .setSession("NetShadowVPN")
+                .establish()
+
+            if (vpnInterface == null) {
+                Log.e(TAG, "Failed to establish VPN interface")
+                stopSelf()
+            } else {
+                Log.i(TAG, "VPN interface established")
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error establishing VPN interface", e)
+            stopSelf()
+        }
     }
 
     private fun promoteToForeground() {
@@ -57,8 +86,19 @@ class NetShadowVpnService : VpnService() {
     }
 
     private fun stopVpn() {
+        try {
+            vpnInterface?.close()
+        } catch (e: Exception) {
+            Log.e(TAG, "Error closing VPN interface", e)
+        }
+        vpnInterface = null
         stopForeground(STOP_FOREGROUND_REMOVE)
         stopSelf()
+    }
+
+    override fun onDestroy() {
+        stopVpn()
+        super.onDestroy()
     }
 
     private fun createNotificationChannel() {
@@ -74,6 +114,7 @@ class NetShadowVpnService : VpnService() {
     }
 
     companion object {
+        private const val TAG = "NetShadowVpnService"
         private const val CHANNEL_ID = "traffic_monitor_channel"
         private const val NOTIFICATION_ID = 1
         private const val ACTION_STOP = "com.example.netshadow.STOP_VPN"
