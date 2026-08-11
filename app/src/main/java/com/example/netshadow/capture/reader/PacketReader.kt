@@ -43,23 +43,30 @@ class PacketReader(
             try {
                 while (isActive) {
                     val buffer = bufferPool.acquire()
-                    val readLength = inputStream.read(buffer)
+                    val readLength = try {
+                        inputStream.read(buffer)
+                    } catch (e: Exception) {
+                        bufferPool.release(buffer)
+                        throw e
+                    }
                     
                     if (readLength > 0) {
-                        // Push to channel. This will suspend if the channel is full (backpressure).
                         packetChannel.send(RawPacket(buffer, readLength))
                     } else {
-                        // Release immediately if no data read
                         bufferPool.release(buffer)
                         if (readLength == -1) {
-                            Log.i(TAG, "End of stream reached")
+                            Log.i(TAG, "End of stream reached (EOF)")
                             break
                         }
                     }
                 }
             } catch (e: Exception) {
+                // If we are not active, this exception is likely due to the FD being closed
+                // during shutdown, which is expected.
                 if (isActive) {
-                    Log.e(TAG, "Error in PacketReader loop", e)
+                    Log.e(TAG, "Unexpected error in PacketReader loop", e)
+                } else {
+                    Log.i(TAG, "PacketReader loop unblocked by closure (expected during shutdown)")
                 }
             } finally {
                 packetChannel.close()
