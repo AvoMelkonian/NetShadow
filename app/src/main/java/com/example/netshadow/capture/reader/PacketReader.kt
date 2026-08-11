@@ -11,6 +11,7 @@ class PacketReader(
     private val scope: CoroutineScope
 ) {
     private var job: Job? = null
+    private val bufferPool = BufferPool(BUFFER_SIZE)
 
     fun start() {
         val fd = vpnInterface.fileDescriptor
@@ -22,19 +23,30 @@ class PacketReader(
 
         job = scope.launch(Dispatchers.IO) {
             val inputStream = FileInputStream(fd)
-            val buffer = ByteArray(MAX_PACKET_SIZE)
             
             try {
                 while (isActive) {
+                    val buffer = bufferPool.acquire()
                     val readLength = inputStream.read(buffer)
+                    
                     if (readLength > 0) {
-                        // Create a ByteBuffer wrapping the read region
-                        val packet = ByteBuffer.wrap(buffer, 0, readLength)
-                        Log.d(TAG, "Read packet of length: ${packet.remaining()}")
-                        // In Phase 2 Part 2, we will process this packet
-                    } else if (readLength == -1) {
-                        Log.i(TAG, "End of stream reached")
-                        break
+                        // Log pool size occasionally for debugging
+                        if (Math.random() < 0.01) {
+                            Log.v(TAG, "Pool size: ${bufferPool.currentSize()}")
+                        }
+                        
+                        // Hand off logic (simulated)
+                        processPacket(buffer, readLength)
+                        
+                        // Release back to pool after "processing"
+                        bufferPool.release(buffer)
+                    } else {
+                        // If no data read or EOF, release the acquired buffer
+                        bufferPool.release(buffer)
+                        if (readLength == -1) {
+                            Log.i(TAG, "End of stream reached")
+                            break
+                        }
                     }
                 }
             } catch (e: Exception) {
@@ -47,6 +59,11 @@ class PacketReader(
         }
     }
 
+    private fun processPacket(buffer: ByteArray, length: Int) {
+        val packet = ByteBuffer.wrap(buffer, 0, length)
+        Log.d(TAG, "Read packet of length: ${packet.remaining()}")
+    }
+
     fun stop() {
         job?.cancel()
         job = null
@@ -54,6 +71,6 @@ class PacketReader(
 
     companion object {
         private const val TAG = "PacketReader"
-        private const val MAX_PACKET_SIZE = 32767
+        private const val BUFFER_SIZE = 1500 // Matches VPN MTU
     }
 }
