@@ -3,8 +3,18 @@ package com.example.netshadow.capture.reader
 import android.os.ParcelFileDescriptor
 import android.util.Log
 import kotlinx.coroutines.*
+import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.channels.ReceiveChannel
 import java.io.FileInputStream
-import java.nio.ByteBuffer
+
+/**
+ * Represents a raw packet read from the TUN interface.
+ * [data] is the buffer from the pool, [length] is the actual bytes read.
+ */
+data class RawPacket(
+    val data: ByteArray,
+    val length: Int
+)
 
 class PacketReader(
     private val vpnInterface: ParcelFileDescriptor,
@@ -12,6 +22,12 @@ class PacketReader(
 ) {
     private var job: Job? = null
     private val bufferPool = BufferPool(BUFFER_SIZE)
+    
+    // Using a buffered channel for backpressure. 
+    // Capacity 100 provides a small buffer for spikes without excessive memory use.
+    private val packetChannel = Channel<RawPacket>(100)
+
+    val packets: ReceiveChannel<RawPacket> = packetChannel
 
     fun start() {
         val fd = vpnInterface.fileDescriptor
@@ -30,18 +46,10 @@ class PacketReader(
                     val readLength = inputStream.read(buffer)
                     
                     if (readLength > 0) {
-                        // Log pool size occasionally for debugging
-                        if (Math.random() < 0.01) {
-                            Log.v(TAG, "Pool size: ${bufferPool.currentSize()}")
-                        }
-                        
-                        // Hand off logic (simulated)
-                        processPacket(buffer, readLength)
-                        
-                        // Release back to pool after "processing"
-                        bufferPool.release(buffer)
+                        // Push to channel. This will suspend if the channel is full (backpressure).
+                        packetChannel.send(RawPacket(buffer, readLength))
                     } else {
-                        // If no data read or EOF, release the acquired buffer
+                        // Release immediately if no data read
                         bufferPool.release(buffer)
                         if (readLength == -1) {
                             Log.i(TAG, "End of stream reached")
@@ -54,14 +62,18 @@ class PacketReader(
                     Log.e(TAG, "Error in PacketReader loop", e)
                 }
             } finally {
+                packetChannel.close()
                 Log.i(TAG, "PacketReader loop stopped")
             }
         }
     }
 
-    private fun processPacket(buffer: ByteArray, length: Int) {
-        val packet = ByteBuffer.wrap(buffer, 0, length)
-        Log.d(TAG, "Read packet of length: ${packet.remaining()}")
+    /**
+     * Releases a buffer back to the reader's pool. 
+     * Consumers MUST call this after processing a [RawPacket].
+     */
+    fun releaseBuffer(buffer: ByteArray) {
+        bufferPool.release(buffer)
     }
 
     fun stop() {

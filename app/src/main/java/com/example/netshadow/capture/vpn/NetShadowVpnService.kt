@@ -16,6 +16,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.launch
 
 class NetShadowVpnService : VpnService() {
 
@@ -63,9 +64,26 @@ class NetShadowVpnService : VpnService() {
     }
 
     private fun startPacketReader(pfd: ParcelFileDescriptor) {
-        packetReader = PacketReader(pfd, serviceScope).apply {
-            start()
+        val reader = PacketReader(pfd, serviceScope)
+        packetReader = reader
+        reader.start()
+
+        // Downstream consumer coroutine
+        serviceScope.launch(Dispatchers.Default) {
+            for (packet in reader.packets) {
+                // Simulate processing
+                processPacket(packet.length)
+                
+                // Release buffer back to pool
+                reader.releaseBuffer(packet.data)
+            }
         }
+    }
+
+    private fun processPacket(length: Int) {
+        // In a real app, this is where parsing happens.
+        // For testing backpressure, we could add a delay(10) here.
+        Log.d(TAG, "Consumer: Processed packet of length $length")
     }
 
     private fun promoteToForeground() {
