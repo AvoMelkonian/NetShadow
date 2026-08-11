@@ -11,10 +11,17 @@ import android.os.ParcelFileDescriptor
 import android.util.Log
 import androidx.core.app.NotificationCompat
 import com.example.netshadow.MainActivity
+import com.example.netshadow.capture.reader.PacketReader
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
 
 class NetShadowVpnService : VpnService() {
 
     private var vpnInterface: ParcelFileDescriptor? = null
+    private val serviceScope = CoroutineScope(Dispatchers.Main + SupervisorJob())
+    private var packetReader: PacketReader? = null
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         if (intent?.action == ACTION_STOP) {
@@ -47,10 +54,17 @@ class NetShadowVpnService : VpnService() {
                 stopSelf()
             } else {
                 Log.i(TAG, "VPN interface established")
+                startPacketReader(vpnInterface!!)
             }
         } catch (e: Exception) {
             Log.e(TAG, "Error establishing VPN interface", e)
             stopSelf()
+        }
+    }
+
+    private fun startPacketReader(pfd: ParcelFileDescriptor) {
+        packetReader = PacketReader(pfd, serviceScope).apply {
+            start()
         }
     }
 
@@ -92,6 +106,9 @@ class NetShadowVpnService : VpnService() {
     }
 
     private fun stopVpn() {
+        packetReader?.stop()
+        packetReader = null
+        
         try {
             vpnInterface?.close()
         } catch (e: Exception) {
@@ -105,6 +122,7 @@ class NetShadowVpnService : VpnService() {
 
     override fun onDestroy() {
         Log.i(TAG, "Service being destroyed")
+        serviceScope.cancel()
         stopVpn()
         super.onDestroy()
     }
