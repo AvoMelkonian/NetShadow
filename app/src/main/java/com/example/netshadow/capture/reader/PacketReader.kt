@@ -6,6 +6,7 @@ import kotlinx.coroutines.*
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.channels.ReceiveChannel
 import java.io.FileInputStream
+import java.io.FileOutputStream
 
 /**
  * Represents a raw packet read from the TUN interface.
@@ -22,6 +23,7 @@ class PacketReader(
 ) {
     private var job: Job? = null
     private val bufferPool = BufferPool(BUFFER_SIZE)
+    private val outputStream = FileOutputStream(vpnInterface.fileDescriptor)
     
     // Using a buffered channel for backpressure. 
     // Capacity 100 provides a small buffer for spikes without excessive memory use.
@@ -72,6 +74,28 @@ class PacketReader(
                 packetChannel.close()
                 Log.i(TAG, "PacketReader loop stopped")
             }
+        }
+    }
+
+    /**
+     * Writes a raw packet back to the TUN interface.
+     */
+    fun writePacket(data: ByteArray) {
+        try {
+            outputStream.write(data)
+        } catch (e: Exception) {
+            Log.e(TAG, "Error writing packet to TUN", e)
+        }
+    }
+
+    /**
+     * Writes a raw packet back to the TUN interface with specific length.
+     */
+    fun writePacket(data: ByteArray, length: Int) {
+        try {
+            outputStream.write(data, 0, length)
+        } catch (e: Exception) {
+            Log.e(TAG, "Error writing packet to TUN", e)
         }
     }
 

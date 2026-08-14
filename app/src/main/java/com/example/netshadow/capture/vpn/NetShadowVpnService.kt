@@ -14,6 +14,7 @@ import com.example.netshadow.MainActivity
 import com.example.netshadow.capture.attribution.TrafficAttributor
 import com.example.netshadow.capture.dns.DnsCache
 import com.example.netshadow.capture.dns.DnsParser
+import com.example.netshadow.capture.dns.DnsRelay
 import com.example.netshadow.capture.model.AttributionStatus
 import com.example.netshadow.capture.model.ConnectionEvent
 import com.example.netshadow.capture.model.ConnectionKey
@@ -38,6 +39,7 @@ class NetShadowVpnService : VpnService() {
     private var packetReader: PacketReader? = null
     private lateinit var trafficAttributor: TrafficAttributor
     private val dnsCache = DnsCache()
+    private lateinit var dnsRelay: DnsRelay
 
     // Connection cache to avoid redundant UID/Package lookups
     private val connectionCache = ConcurrentHashMap<ConnectionKey, ConnectionEvent>()
@@ -49,6 +51,7 @@ class NetShadowVpnService : VpnService() {
     override fun onCreate() {
         super.onCreate()
         trafficAttributor = TrafficAttributor(this)
+        dnsRelay = DnsRelay(this)
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -112,7 +115,7 @@ class NetShadowVpnService : VpnService() {
                             17 -> { // UDP
                                 val udpHeader = UdpHeader.parse(packet.data, ipHeader.payloadOffset, packet.length)
                                 if (udpHeader != null) {
-                                    processUdpPacket(ipHeader, udpHeader, packet.data)
+                                    processUdpPacket(ipHeader, udpHeader, packet.data, packet.length)
                                 }
                             }
                             else -> {
@@ -170,7 +173,7 @@ class NetShadowVpnService : VpnService() {
         Log.v(TAG, "TCP Packet: ${event.packageName} (${event.domainName ?: event.destinationAddress}) (UID=${event.uid})")
     }
 
-    private fun processUdpPacket(ipHeader: IpHeader, udpHeader: UdpHeader, packetData: ByteArray) {
+    private fun processUdpPacket(ipHeader: IpHeader, udpHeader: UdpHeader, packetData: ByteArray, packetLength: Int) {
         val key = ConnectionKey(
             17,
             ipHeader.sourceAddress,
@@ -208,13 +211,30 @@ class NetShadowVpnService : VpnService() {
 
         // DNS Detection & Filtering
         if (DnsParser.isDnsPacket(udpHeader.destinationPort) || DnsParser.isDnsPacket(udpHeader.sourcePort)) {
-            val dnsMessage = DnsParser.parse(packetData, ipHeader.payloadOffset + 8, packetData.size)
+            val dnsMessage = DnsParser.parse(packetData, ipHeader.payloadOffset + 8, packetLength)
             if (dnsMessage != null) {
                 if (dnsMessage.isResponse) {
                     // Populate DNS Cache from answers
                     dnsMessage.answers.forEach { record ->
                         record.address?.let { addr ->
                             dnsCache.put(addr, record.name)
+                        }
+                    }
+                } else {
+                    // Relay DNS Query and Inject Response
+                    val queryCopy = packetData.copyOfRange(0, packetLength)
+                    serviceScope.launch {
+                        val responsePacket = dnsRelay.relay(queryCopy, ipHeader, udpHeader)
+                        if (responsePacket != null) {
+                            // Parse the response to populate cache before injecting
+                            // Offset is 28 (20 IP + 8 UDP)
+                            val responseMessage = DnsParser.parse(responsePacket, 28, responsePacket.size)
+                            responseMessage?.answers?.forEach { record ->
+                                record.address?.let { addr ->
+                                    dnsCache.put(addr, record.name)
+                                }
+                            }
+                            packetReader?.writePacket(responsePacket)
                         }
                     }
                 }
