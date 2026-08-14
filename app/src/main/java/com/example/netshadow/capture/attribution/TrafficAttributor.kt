@@ -12,6 +12,16 @@ import java.net.InetSocketAddress
  */
 class TrafficAttributor(context: Context) {
     private val connectivityManager = context.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
+    private val packageManager = context.packageManager
+
+    private val systemUidMap = mapOf(
+        0 to "root",
+        1000 to "system",
+        1001 to "phone",
+        1013 to "mediaserver",
+        1021 to "gps",
+        1073 to "network_stack"
+    )
 
     /**
      * Resolves the UID owning a connection.
@@ -20,13 +30,8 @@ class TrafficAttributor(context: Context) {
      * @param local The local address and port.
      * @param remote The remote address and port.
      * @return The UID of the owning process, or [Process.INVALID_UID] if not found.
-     * 
-     * Note on Retry Policy: Currently uses a single-attempt strategy to maintain low latency 
-     * in the packet processing hot-path. Races during socket setup/teardown may result in 
-     * temporary attribution failures (-1), which are tagged as UNATTRIBUTED.
      */
     fun getUid(protocol: Int, local: InetSocketAddress, remote: InetSocketAddress): Int {
-        // API 29+ requirement is met by project's minSdk.
         return try {
             val uid = connectivityManager.getConnectionOwnerUid(protocol, local, remote)
             if (uid == Process.INVALID_UID) {
@@ -39,6 +44,26 @@ class TrafficAttributor(context: Context) {
         } catch (e: Exception) {
             Log.e(TAG, "Unexpected error during UID resolution", e)
             Process.INVALID_UID
+        }
+    }
+
+    /**
+     * Resolves a package name for a given UID.
+     */
+    fun getPackageName(uid: Int): String {
+        if (uid == Process.INVALID_UID) return "unattributed"
+        if (uid < 10000) return systemUidMap[uid] ?: "system_low_$uid"
+
+        val packages = try {
+            packageManager.getPackagesForUid(uid)
+        } catch (e: Exception) {
+            null
+        }
+
+        return when {
+            packages == null || packages.isEmpty() -> "unknown_uid_$uid"
+            packages.size == 1 -> packages[0]
+            else -> "${packages[0]} (+${packages.size - 1} others)" // Handle shared UIDs
         }
     }
 

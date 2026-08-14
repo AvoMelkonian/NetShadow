@@ -119,14 +119,16 @@ class NetShadowVpnService : VpnService() {
         val local = InetSocketAddress(ipHeader.sourceAddress, tcpHeader.sourcePort)
         val remote = InetSocketAddress(ipHeader.destinationAddress, tcpHeader.destinationPort)
         val uid = trafficAttributor.getUid(6, local, remote)
-        Log.d(TAG, "Consumer TCP [UID=$uid]: $ipHeader | $tcpHeader")
+        val packageName = trafficAttributor.getPackageName(uid)
+        Log.d(TAG, "Consumer TCP [App=$packageName, UID=$uid]: $ipHeader | $tcpHeader")
     }
 
     private fun processUdpPacket(ipHeader: IpHeader, udpHeader: UdpHeader) {
         val local = InetSocketAddress(ipHeader.sourceAddress, udpHeader.sourcePort)
         val remote = InetSocketAddress(ipHeader.destinationAddress, udpHeader.destinationPort)
         val uid = trafficAttributor.getUid(17, local, remote)
-        Log.d(TAG, "Consumer UDP [UID=$uid]: $ipHeader | $udpHeader")
+        val packageName = trafficAttributor.getPackageName(uid)
+        Log.d(TAG, "Consumer UDP [App=$packageName, UID=$uid]: $ipHeader | $udpHeader")
     }
 
     private fun promoteToForeground() {
