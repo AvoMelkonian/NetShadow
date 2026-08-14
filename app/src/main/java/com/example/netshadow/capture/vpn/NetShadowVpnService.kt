@@ -12,6 +12,9 @@ import android.util.Log
 import androidx.core.app.NotificationCompat
 import com.example.netshadow.MainActivity
 import com.example.netshadow.capture.attribution.TrafficAttributor
+import com.example.netshadow.capture.model.AttributionStatus
+import com.example.netshadow.capture.model.ConnectionEvent
+import com.example.netshadow.capture.model.ConnectionKey
 import com.example.netshadow.capture.parser.IpHeader
 import com.example.netshadow.capture.parser.TcpHeader
 import com.example.netshadow.capture.parser.UdpHeader
@@ -20,8 +23,11 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.launch
 import java.net.InetSocketAddress
+import java.util.concurrent.ConcurrentHashMap
 
 class NetShadowVpnService : VpnService() {
 
@@ -29,6 +35,13 @@ class NetShadowVpnService : VpnService() {
     private val serviceScope = CoroutineScope(Dispatchers.Main + SupervisorJob())
     private var packetReader: PacketReader? = null
     private lateinit var trafficAttributor: TrafficAttributor
+
+    // Connection cache to avoid redundant UID/Package lookups
+    private val connectionCache = ConcurrentHashMap<ConnectionKey, ConnectionEvent>()
+
+    // Exposed flow for UI or other observers
+    private val _connectionEvents = MutableSharedFlow<ConnectionEvent>()
+    val connectionEvents = _connectionEvents.asSharedFlow()
 
     override fun onCreate() {
         super.onCreate()
@@ -116,19 +129,77 @@ class NetShadowVpnService : VpnService() {
     }
 
     private fun processTcpPacket(ipHeader: IpHeader, tcpHeader: TcpHeader) {
-        val local = InetSocketAddress(ipHeader.sourceAddress, tcpHeader.sourcePort)
-        val remote = InetSocketAddress(ipHeader.destinationAddress, tcpHeader.destinationPort)
-        val uid = trafficAttributor.getUid(6, local, remote)
-        val packageName = trafficAttributor.getPackageName(uid)
-        Log.d(TAG, "Consumer TCP [App=$packageName, UID=$uid]: $ipHeader | $tcpHeader")
+        val key = ConnectionKey(
+            6,
+            ipHeader.sourceAddress,
+            tcpHeader.sourcePort,
+            ipHeader.destinationAddress,
+            tcpHeader.destinationPort
+        )
+        
+        val event = connectionCache.getOrPut(key) {
+            val local = InetSocketAddress(ipHeader.sourceAddress, tcpHeader.sourcePort)
+            val remote = InetSocketAddress(ipHeader.destinationAddress, tcpHeader.destinationPort)
+            val uid = trafficAttributor.getUid(6, local, remote)
+            val packageName = trafficAttributor.getPackageName(uid)
+            val status = when {
+                uid == android.os.Process.INVALID_UID -> AttributionStatus.UNATTRIBUTED
+                uid < 10000 -> AttributionStatus.SYSTEM
+                else -> AttributionStatus.RESOLVED
+            }
+            
+            ConnectionEvent(
+                6,
+                ipHeader.sourceAddress,
+                tcpHeader.sourcePort,
+                ipHeader.destinationAddress,
+                tcpHeader.destinationPort,
+                uid,
+                packageName,
+                status
+            ).also {
+                serviceScope.launch { _connectionEvents.emit(it) }
+            }
+        }
+        
+        Log.v(TAG, "TCP Packet: ${event.packageName} (UID=${event.uid}) for ${ipHeader.destinationAddress}:${tcpHeader.destinationPort}")
     }
 
     private fun processUdpPacket(ipHeader: IpHeader, udpHeader: UdpHeader) {
-        val local = InetSocketAddress(ipHeader.sourceAddress, udpHeader.sourcePort)
-        val remote = InetSocketAddress(ipHeader.destinationAddress, udpHeader.destinationPort)
-        val uid = trafficAttributor.getUid(17, local, remote)
-        val packageName = trafficAttributor.getPackageName(uid)
-        Log.d(TAG, "Consumer UDP [App=$packageName, UID=$uid]: $ipHeader | $udpHeader")
+        val key = ConnectionKey(
+            17,
+            ipHeader.sourceAddress,
+            udpHeader.sourcePort,
+            ipHeader.destinationAddress,
+            udpHeader.destinationPort
+        )
+
+        val event = connectionCache.getOrPut(key) {
+            val local = InetSocketAddress(ipHeader.sourceAddress, udpHeader.sourcePort)
+            val remote = InetSocketAddress(ipHeader.destinationAddress, udpHeader.destinationPort)
+            val uid = trafficAttributor.getUid(17, local, remote)
+            val packageName = trafficAttributor.getPackageName(uid)
+            val status = when {
+                uid == android.os.Process.INVALID_UID -> AttributionStatus.UNATTRIBUTED
+                uid < 10000 -> AttributionStatus.SYSTEM
+                else -> AttributionStatus.RESOLVED
+            }
+
+            ConnectionEvent(
+                17,
+                ipHeader.sourceAddress,
+                udpHeader.sourcePort,
+                ipHeader.destinationAddress,
+                udpHeader.destinationPort,
+                uid,
+                packageName,
+                status
+            ).also {
+                serviceScope.launch { _connectionEvents.emit(it) }
+            }
+        }
+
+        Log.v(TAG, "UDP Packet: ${event.packageName} (UID=${event.uid}) for ${ipHeader.destinationAddress}:${udpHeader.destinationPort}")
     }
 
     private fun promoteToForeground() {
@@ -171,6 +242,7 @@ class NetShadowVpnService : VpnService() {
     private fun stopVpn() {
         packetReader?.stop()
         packetReader = null
+        connectionCache.clear() // Cache invalidation on service stop
         
         try {
             vpnInterface?.close()
