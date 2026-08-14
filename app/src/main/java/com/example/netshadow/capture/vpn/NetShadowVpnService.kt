@@ -15,6 +15,7 @@ import com.example.netshadow.capture.attribution.TrafficAttributor
 import com.example.netshadow.capture.dns.DnsCache
 import com.example.netshadow.capture.dns.DnsParser
 import com.example.netshadow.capture.dns.DnsRelay
+import com.example.netshadow.capture.relay.SessionManager
 import com.example.netshadow.capture.model.AttributionStatus
 import com.example.netshadow.capture.model.ConnectionEvent
 import com.example.netshadow.capture.model.ConnectionKey
@@ -28,6 +29,8 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.asSharedFlow
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import java.net.InetSocketAddress
 import java.util.concurrent.ConcurrentHashMap
@@ -40,6 +43,7 @@ class NetShadowVpnService : VpnService() {
     private lateinit var trafficAttributor: TrafficAttributor
     private val dnsCache = DnsCache()
     private lateinit var dnsRelay: DnsRelay
+    private lateinit var sessionManager: SessionManager
 
     // Connection cache to avoid redundant UID/Package lookups
     private val connectionCache = ConcurrentHashMap<ConnectionKey, ConnectionEvent>()
@@ -52,6 +56,7 @@ class NetShadowVpnService : VpnService() {
         super.onCreate()
         trafficAttributor = TrafficAttributor(this)
         dnsRelay = DnsRelay(this)
+        sessionManager = SessionManager(trafficAttributor, dnsCache)
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -62,8 +67,18 @@ class NetShadowVpnService : VpnService() {
 
         promoteToForeground()
         setupVpnInterface()
+        startSessionCleanup()
         
         return START_STICKY
+    }
+
+    private fun startSessionCleanup() {
+        serviceScope.launch(Dispatchers.Default) {
+            while (isActive) {
+                delay(30_000)
+                sessionManager.cleanupIdleSessions()
+            }
+        }
     }
 
     private fun setupVpnInterface() {
@@ -135,15 +150,13 @@ class NetShadowVpnService : VpnService() {
     }
 
     private fun processTcpPacket(ipHeader: IpHeader, tcpHeader: TcpHeader) {
-        val key = ConnectionKey(
-            6,
-            ipHeader.sourceAddress,
-            tcpHeader.sourcePort,
-            ipHeader.destinationAddress,
-            tcpHeader.destinationPort
+        val session = sessionManager.getOrCreateSession(
+            6, ipHeader, tcpHeader.sourcePort, tcpHeader.destinationPort, ipHeader.totalLength - ipHeader.ihl
         )
         
-        val event = connectionCache.getOrPut(key) {
+        sessionManager.updateTcpSession(session.key, tcpHeader)
+
+        val event = connectionCache.getOrPut(session.key) {
             val local = InetSocketAddress(ipHeader.sourceAddress, tcpHeader.sourcePort)
             val remote = InetSocketAddress(ipHeader.destinationAddress, tcpHeader.destinationPort)
             val uid = trafficAttributor.getUid(6, local, remote)
@@ -174,15 +187,11 @@ class NetShadowVpnService : VpnService() {
     }
 
     private fun processUdpPacket(ipHeader: IpHeader, udpHeader: UdpHeader, packetData: ByteArray, packetLength: Int) {
-        val key = ConnectionKey(
-            17,
-            ipHeader.sourceAddress,
-            udpHeader.sourcePort,
-            ipHeader.destinationAddress,
-            udpHeader.destinationPort
+        val session = sessionManager.getOrCreateSession(
+            17, ipHeader, udpHeader.sourcePort, udpHeader.destinationPort, udpHeader.length - 8
         )
 
-        val event = connectionCache.getOrPut(key) {
+        val event = connectionCache.getOrPut(session.key) {
             val local = InetSocketAddress(ipHeader.sourceAddress, udpHeader.sourcePort)
             val remote = InetSocketAddress(ipHeader.destinationAddress, udpHeader.destinationPort)
             val uid = trafficAttributor.getUid(17, local, remote)
