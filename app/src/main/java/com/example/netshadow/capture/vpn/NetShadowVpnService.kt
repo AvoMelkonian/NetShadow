@@ -74,40 +74,37 @@ class NetShadowVpnService : VpnService() {
         // Downstream consumer coroutine
         serviceScope.launch(Dispatchers.Default) {
             for (packet in reader.packets) {
-                // Parse IPv4 Header
-                val ipHeader = IpHeader.parse(packet.data, packet.length)
-                if (ipHeader != null) {
-                    when (ipHeader.protocol) {
-                        6 -> { // TCP
-                            val tcpHeader = TcpHeader.parse(packet.data, ipHeader.payloadOffset, packet.length)
-                            if (tcpHeader != null) {
-                                processTcpPacket(ipHeader, tcpHeader)
-                            } else {
-                                processIpPacket(ipHeader)
+                try {
+                    // Parse IPv4 Header with defensive checks
+                    val ipHeader = IpHeader.parse(packet.data, packet.length)
+                    if (ipHeader != null) {
+                        when (ipHeader.protocol) {
+                            6 -> { // TCP
+                                val tcpHeader = TcpHeader.parse(packet.data, ipHeader.payloadOffset, packet.length)
+                                if (tcpHeader != null) {
+                                    processTcpPacket(ipHeader, tcpHeader)
+                                }
                             }
-                        }
-                        17 -> { // UDP
-                            val udpHeader = UdpHeader.parse(packet.data, ipHeader.payloadOffset, packet.length)
-                            if (udpHeader != null) {
-                                processUdpPacket(ipHeader, udpHeader)
-                            } else {
-                                processIpPacket(ipHeader)
+                            17 -> { // UDP
+                                val udpHeader = UdpHeader.parse(packet.data, ipHeader.payloadOffset, packet.length)
+                                if (udpHeader != null) {
+                                    processUdpPacket(ipHeader, udpHeader)
+                                }
                             }
-                        }
-                        else -> {
-                            processIpPacket(ipHeader)
+                            else -> {
+                                // Skip ICMP, IGMP, etc. for now
+                                Log.v(TAG, "Skipping non-TCP/UDP protocol: ${ipHeader.protocol}")
+                            }
                         }
                     }
+                } catch (e: Exception) {
+                    Log.e(TAG, "Critical parsing error - dropping packet", e)
+                } finally {
+                    // Release buffer back to pool
+                    reader.releaseBuffer(packet.data)
                 }
-                
-                // Release buffer back to pool
-                reader.releaseBuffer(packet.data)
             }
         }
-    }
-
-    private fun processIpPacket(header: IpHeader) {
-        Log.d(TAG, "Consumer IP: $header")
     }
 
     private fun processTcpPacket(ipHeader: IpHeader, tcpHeader: TcpHeader) {
