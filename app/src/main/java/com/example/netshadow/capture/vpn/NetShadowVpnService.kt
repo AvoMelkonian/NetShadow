@@ -12,6 +12,7 @@ import android.util.Log
 import androidx.core.app.NotificationCompat
 import com.example.netshadow.MainActivity
 import com.example.netshadow.capture.attribution.TrafficAttributor
+import com.example.netshadow.capture.dns.DnsParser
 import com.example.netshadow.capture.model.AttributionStatus
 import com.example.netshadow.capture.model.ConnectionEvent
 import com.example.netshadow.capture.model.ConnectionKey
@@ -109,7 +110,7 @@ class NetShadowVpnService : VpnService() {
                             17 -> { // UDP
                                 val udpHeader = UdpHeader.parse(packet.data, ipHeader.payloadOffset, packet.length)
                                 if (udpHeader != null) {
-                                    processUdpPacket(ipHeader, udpHeader)
+                                    processUdpPacket(ipHeader, udpHeader, packet.data)
                                 }
                             }
                             else -> {
@@ -165,7 +166,7 @@ class NetShadowVpnService : VpnService() {
         Log.v(TAG, "TCP Packet: ${event.packageName} (UID=${event.uid}) for ${ipHeader.destinationAddress}:${tcpHeader.destinationPort}")
     }
 
-    private fun processUdpPacket(ipHeader: IpHeader, udpHeader: UdpHeader) {
+    private fun processUdpPacket(ipHeader: IpHeader, udpHeader: UdpHeader, packetData: ByteArray) {
         val key = ConnectionKey(
             17,
             ipHeader.sourceAddress,
@@ -197,6 +198,12 @@ class NetShadowVpnService : VpnService() {
             ).also {
                 serviceScope.launch { _connectionEvents.emit(it) }
             }
+        }
+
+        // DNS Detection & Filtering
+        if (DnsParser.isDnsPacket(udpHeader.destinationPort)) {
+            Log.i(TAG, "DNS Query detected: ${event.packageName} (UID=${event.uid}) -> ${ipHeader.destinationAddress}")
+            // Note: DNS-over-HTTPS/TLS (port 443/853) is not captured here as it's encrypted/TCP.
         }
 
         Log.v(TAG, "UDP Packet: ${event.packageName} (UID=${event.uid}) for ${ipHeader.destinationAddress}:${udpHeader.destinationPort}")
