@@ -11,6 +11,7 @@ import android.os.ParcelFileDescriptor
 import android.util.Log
 import androidx.core.app.NotificationCompat
 import com.example.netshadow.MainActivity
+import com.example.netshadow.capture.parser.IpHeader
 import com.example.netshadow.capture.reader.PacketReader
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -71,8 +72,11 @@ class NetShadowVpnService : VpnService() {
         // Downstream consumer coroutine
         serviceScope.launch(Dispatchers.Default) {
             for (packet in reader.packets) {
-                // Simulate processing
-                processPacket(packet.length)
+                // Parse IPv4 Header
+                val header = IpHeader.parse(packet.data, packet.length)
+                if (header != null) {
+                    processPacket(header)
+                }
                 
                 // Release buffer back to pool
                 reader.releaseBuffer(packet.data)
@@ -80,10 +84,8 @@ class NetShadowVpnService : VpnService() {
         }
     }
 
-    private fun processPacket(length: Int) {
-        // In a real app, this is where parsing happens.
-        // For testing backpressure, we could add a delay(10) here.
-        Log.d(TAG, "Consumer: Processed packet of length $length")
+    private fun processPacket(header: IpHeader) {
+        Log.d(TAG, "Consumer: $header")
     }
 
     private fun promoteToForeground() {
