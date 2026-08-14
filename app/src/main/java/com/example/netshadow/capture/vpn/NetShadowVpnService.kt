@@ -91,7 +91,6 @@ class NetShadowVpnService : VpnService() {
             vpnInterface = builder
                 .addAddress("10.0.0.2", 32)
                 .addRoute("0.0.0.0", 0)
-                .addRoute("::", 0)
                 .addDnsServer("8.8.8.8")
                 .setMtu(1500)
                 .setBlocking(false)
@@ -215,7 +214,7 @@ class NetShadowVpnService : VpnService() {
             dnsQueryName = dnsMessage.questions.firstOrNull()?.name
         }
 
-        val event = connectionCache.getOrPut(session.key) {
+        val event = connectionCache[session.key] ?: run {
             val local = InetSocketAddress(ipHeader.sourceAddress, udpHeader.sourcePort)
             val remote = InetSocketAddress(ipHeader.destinationAddress, udpHeader.destinationPort)
             val uid = trafficAttributor.getUid(17, local, remote)
@@ -239,8 +238,16 @@ class NetShadowVpnService : VpnService() {
                 dnsQuery = dnsQueryName,
                 status = status
             ).also {
+                connectionCache[session.key] = it
                 serviceScope.launch { _connectionEvents.emit(it) }
             }
+        }
+
+        // Update dnsQuery if we just discovered it in an existing session
+        if (dnsQueryName != null && event.dnsQuery == null) {
+            val updatedEvent = event.copy(dnsQuery = dnsQueryName)
+            connectionCache[session.key] = updatedEvent
+            serviceScope.launch { _connectionEvents.emit(updatedEvent) }
         }
 
         // DNS Relay Logic
@@ -252,6 +259,8 @@ class NetShadowVpnService : VpnService() {
                         dnsCache.put(addr, record.name)
                     }
                 }
+                // Forward responses back to the app (if we aren't the ones who generated them)
+                // packetReader?.forwardToShim(packetData, packetLength)
             } else {
                 // Relay DNS Query and Inject Response
                 val queryCopy = packetData.copyOfRange(0, packetLength)
@@ -274,7 +283,9 @@ class NetShadowVpnService : VpnService() {
             val qName = dnsMessage.questions.firstOrNull()?.name ?: "unknown"
             Log.i(TAG, "DNS $type [ID=${dnsMessage.transactionId}]: ${event.packageName} -> $qName")
         } else {
-            Log.v(TAG, "UDP Packet: ${event.packageName} (${event.domainName ?: event.destinationAddress}) (UID=${event.uid})")
+            // Forward non-DNS UDP traffic to tun2socks for relaying
+            packetReader?.forwardToShim(packetData, packetLength)
+            Log.v(TAG, "UDP Packet Forwarded: ${event.packageName} (${event.domainName ?: event.destinationAddress}) (UID=${event.uid})")
         }
     }
 
