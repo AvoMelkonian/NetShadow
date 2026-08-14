@@ -184,15 +184,15 @@ class NetShadowVpnService : VpnService() {
             }
             
             ConnectionEvent(
-                6,
-                ipHeader.sourceAddress,
-                tcpHeader.sourcePort,
-                ipHeader.destinationAddress,
-                tcpHeader.destinationPort,
-                uid,
-                packageName,
-                domainName,
-                status
+                protocol = 6,
+                sourceAddress = ipHeader.sourceAddress,
+                sourcePort = tcpHeader.sourcePort,
+                destinationAddress = ipHeader.destinationAddress,
+                destinationPort = tcpHeader.destinationPort,
+                uid = uid,
+                packageName = packageName,
+                domainName = domainName,
+                status = status
             ).also {
                 serviceScope.launch { _connectionEvents.emit(it) }
             }
@@ -205,6 +205,15 @@ class NetShadowVpnService : VpnService() {
         val session = sessionManager.getOrCreateSession(
             17, ipHeader, udpHeader.sourcePort, udpHeader.destinationPort, udpHeader.length - 8
         )
+
+        // DNS Detection & Parsing
+        var dnsQueryName: String? = null
+        val isDns = DnsParser.isDnsPacket(udpHeader.destinationPort) || DnsParser.isDnsPacket(udpHeader.sourcePort)
+        val dnsMessage = if (isDns) DnsParser.parse(packetData, ipHeader.payloadOffset + 8, packetLength) else null
+        
+        if (dnsMessage != null && !dnsMessage.isResponse) {
+            dnsQueryName = dnsMessage.questions.firstOrNull()?.name
+        }
 
         val event = connectionCache.getOrPut(session.key) {
             val local = InetSocketAddress(ipHeader.sourceAddress, udpHeader.sourcePort)
@@ -219,56 +228,51 @@ class NetShadowVpnService : VpnService() {
             }
 
             ConnectionEvent(
-                17,
-                ipHeader.sourceAddress,
-                udpHeader.sourcePort,
-                ipHeader.destinationAddress,
-                udpHeader.destinationPort,
-                uid,
-                packageName,
-                domainName,
-                status
+                protocol = 17,
+                sourceAddress = ipHeader.sourceAddress,
+                sourcePort = udpHeader.sourcePort,
+                destinationAddress = ipHeader.destinationAddress,
+                destinationPort = udpHeader.destinationPort,
+                uid = uid,
+                packageName = packageName,
+                domainName = domainName,
+                dnsQuery = dnsQueryName,
+                status = status
             ).also {
                 serviceScope.launch { _connectionEvents.emit(it) }
             }
         }
 
-        // DNS Detection & Filtering
-        if (DnsParser.isDnsPacket(udpHeader.destinationPort) || DnsParser.isDnsPacket(udpHeader.sourcePort)) {
-            val dnsMessage = DnsParser.parse(packetData, ipHeader.payloadOffset + 8, packetLength)
-            if (dnsMessage != null) {
-                if (dnsMessage.isResponse) {
-                    // Populate DNS Cache from answers
-                    dnsMessage.answers.forEach { record ->
-                        record.address?.let { addr ->
-                            dnsCache.put(addr, record.name)
-                        }
-                    }
-                } else {
-                    // Relay DNS Query and Inject Response
-                    val queryCopy = packetData.copyOfRange(0, packetLength)
-                    serviceScope.launch {
-                        val responsePacket = dnsRelay.relay(queryCopy, ipHeader, udpHeader)
-                        if (responsePacket != null) {
-                            // Parse the response to populate cache before injecting
-                            // Offset is 28 (20 IP + 8 UDP)
-                            val responseMessage = DnsParser.parse(responsePacket, 28, responsePacket.size)
-                            responseMessage?.answers?.forEach { record ->
-                                record.address?.let { addr ->
-                                    dnsCache.put(addr, record.name)
-                                }
-                            }
-                            packetReader?.writePacket(responsePacket)
-                        }
+        // DNS Relay Logic
+        if (dnsMessage != null) {
+            if (dnsMessage.isResponse) {
+                // Populate DNS Cache from answers
+                dnsMessage.answers.forEach { record ->
+                    record.address?.let { addr ->
+                        dnsCache.put(addr, record.name)
                     }
                 }
-                
-                val type = if (dnsMessage.isResponse) "Response" else "Query"
-                val qName = dnsMessage.questions.firstOrNull()?.name ?: "unknown"
-                Log.i(TAG, "DNS $type [ID=${dnsMessage.transactionId}]: ${event.packageName} -> $qName")
             } else {
-                Log.v(TAG, "UDP Packet: ${event.packageName} (UID=${event.uid}) for ${ipHeader.destinationAddress}:${udpHeader.destinationPort}")
+                // Relay DNS Query and Inject Response
+                val queryCopy = packetData.copyOfRange(0, packetLength)
+                serviceScope.launch {
+                    val responsePacket = dnsRelay.relay(queryCopy, ipHeader, udpHeader)
+                    if (responsePacket != null) {
+                        // Parse the response to populate cache before injecting
+                        val responseMessage = DnsParser.parse(responsePacket, 28, responsePacket.size)
+                        responseMessage?.answers?.forEach { record ->
+                            record.address?.let { addr ->
+                                dnsCache.put(addr, record.name)
+                            }
+                        }
+                        packetReader?.writePacket(responsePacket)
+                    }
+                }
             }
+            
+            val type = if (dnsMessage.isResponse) "Response" else "Query"
+            val qName = dnsMessage.questions.firstOrNull()?.name ?: "unknown"
+            Log.i(TAG, "DNS $type [ID=${dnsMessage.transactionId}]: ${event.packageName} -> $qName")
         } else {
             Log.v(TAG, "UDP Packet: ${event.packageName} (${event.domainName ?: event.destinationAddress}) (UID=${event.uid})")
         }
