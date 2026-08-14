@@ -12,6 +12,7 @@ import android.util.Log
 import androidx.core.app.NotificationCompat
 import com.example.netshadow.MainActivity
 import com.example.netshadow.capture.parser.IpHeader
+import com.example.netshadow.capture.parser.TcpHeader
 import com.example.netshadow.capture.reader.PacketReader
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -73,9 +74,18 @@ class NetShadowVpnService : VpnService() {
         serviceScope.launch(Dispatchers.Default) {
             for (packet in reader.packets) {
                 // Parse IPv4 Header
-                val header = IpHeader.parse(packet.data, packet.length)
-                if (header != null) {
-                    processPacket(header)
+                val ipHeader = IpHeader.parse(packet.data, packet.length)
+                if (ipHeader != null) {
+                    if (ipHeader.protocol == 6) { // TCP
+                        val tcpHeader = TcpHeader.parse(packet.data, ipHeader.payloadOffset, packet.length)
+                        if (tcpHeader != null) {
+                            processTcpPacket(ipHeader, tcpHeader)
+                        } else {
+                            processIpPacket(ipHeader)
+                        }
+                    } else {
+                        processIpPacket(ipHeader)
+                    }
                 }
                 
                 // Release buffer back to pool
@@ -84,8 +94,12 @@ class NetShadowVpnService : VpnService() {
         }
     }
 
-    private fun processPacket(header: IpHeader) {
-        Log.d(TAG, "Consumer: $header")
+    private fun processIpPacket(header: IpHeader) {
+        Log.d(TAG, "Consumer IP: $header")
+    }
+
+    private fun processTcpPacket(ipHeader: IpHeader, tcpHeader: TcpHeader) {
+        Log.d(TAG, "Consumer TCP: $ipHeader | $tcpHeader")
     }
 
     private fun promoteToForeground() {
