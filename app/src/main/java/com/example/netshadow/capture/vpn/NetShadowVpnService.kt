@@ -13,6 +13,7 @@ import androidx.core.app.NotificationCompat
 import com.example.netshadow.MainActivity
 import com.example.netshadow.capture.parser.IpHeader
 import com.example.netshadow.capture.parser.TcpHeader
+import com.example.netshadow.capture.parser.UdpHeader
 import com.example.netshadow.capture.reader.PacketReader
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -76,15 +77,26 @@ class NetShadowVpnService : VpnService() {
                 // Parse IPv4 Header
                 val ipHeader = IpHeader.parse(packet.data, packet.length)
                 if (ipHeader != null) {
-                    if (ipHeader.protocol == 6) { // TCP
-                        val tcpHeader = TcpHeader.parse(packet.data, ipHeader.payloadOffset, packet.length)
-                        if (tcpHeader != null) {
-                            processTcpPacket(ipHeader, tcpHeader)
-                        } else {
+                    when (ipHeader.protocol) {
+                        6 -> { // TCP
+                            val tcpHeader = TcpHeader.parse(packet.data, ipHeader.payloadOffset, packet.length)
+                            if (tcpHeader != null) {
+                                processTcpPacket(ipHeader, tcpHeader)
+                            } else {
+                                processIpPacket(ipHeader)
+                            }
+                        }
+                        17 -> { // UDP
+                            val udpHeader = UdpHeader.parse(packet.data, ipHeader.payloadOffset, packet.length)
+                            if (udpHeader != null) {
+                                processUdpPacket(ipHeader, udpHeader)
+                            } else {
+                                processIpPacket(ipHeader)
+                            }
+                        }
+                        else -> {
                             processIpPacket(ipHeader)
                         }
-                    } else {
-                        processIpPacket(ipHeader)
                     }
                 }
                 
@@ -100,6 +112,10 @@ class NetShadowVpnService : VpnService() {
 
     private fun processTcpPacket(ipHeader: IpHeader, tcpHeader: TcpHeader) {
         Log.d(TAG, "Consumer TCP: $ipHeader | $tcpHeader")
+    }
+
+    private fun processUdpPacket(ipHeader: IpHeader, udpHeader: UdpHeader) {
+        Log.d(TAG, "Consumer UDP: $ipHeader | $udpHeader")
     }
 
     private fun promoteToForeground() {
