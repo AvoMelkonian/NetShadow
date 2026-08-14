@@ -201,12 +201,18 @@ class NetShadowVpnService : VpnService() {
         }
 
         // DNS Detection & Filtering
-        if (DnsParser.isDnsPacket(udpHeader.destinationPort)) {
-            Log.i(TAG, "DNS Query detected: ${event.packageName} (UID=${event.uid}) -> ${ipHeader.destinationAddress}")
-            // Note: DNS-over-HTTPS/TLS (port 443/853) is not captured here as it's encrypted/TCP.
+        if (DnsParser.isDnsPacket(udpHeader.destinationPort) || DnsParser.isDnsPacket(udpHeader.sourcePort)) {
+            val dnsMessage = DnsParser.parse(packetData, ipHeader.payloadOffset + 8, packetData.size)
+            if (dnsMessage != null) {
+                val type = if (dnsMessage.isResponse) "Response" else "Query"
+                val qName = dnsMessage.questions.firstOrNull()?.name ?: "unknown"
+                Log.i(TAG, "DNS $type [ID=${dnsMessage.transactionId}]: ${event.packageName} -> $qName")
+            } else {
+                Log.v(TAG, "UDP Packet: ${event.packageName} (UID=${event.uid}) for ${ipHeader.destinationAddress}:${udpHeader.destinationPort}")
+            }
+        } else {
+            Log.v(TAG, "UDP Packet: ${event.packageName} (UID=${event.uid}) for ${ipHeader.destinationAddress}:${udpHeader.destinationPort}")
         }
-
-        Log.v(TAG, "UDP Packet: ${event.packageName} (UID=${event.uid}) for ${ipHeader.destinationAddress}:${udpHeader.destinationPort}")
     }
 
     private fun promoteToForeground() {
