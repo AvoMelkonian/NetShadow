@@ -12,6 +12,7 @@ import android.util.Log
 import androidx.core.app.NotificationCompat
 import com.example.netshadow.MainActivity
 import com.example.netshadow.capture.attribution.TrafficAttributor
+import com.example.netshadow.capture.dns.DnsCache
 import com.example.netshadow.capture.dns.DnsParser
 import com.example.netshadow.capture.model.AttributionStatus
 import com.example.netshadow.capture.model.ConnectionEvent
@@ -36,6 +37,7 @@ class NetShadowVpnService : VpnService() {
     private val serviceScope = CoroutineScope(Dispatchers.Main + SupervisorJob())
     private var packetReader: PacketReader? = null
     private lateinit var trafficAttributor: TrafficAttributor
+    private val dnsCache = DnsCache()
 
     // Connection cache to avoid redundant UID/Package lookups
     private val connectionCache = ConcurrentHashMap<ConnectionKey, ConnectionEvent>()
@@ -143,6 +145,7 @@ class NetShadowVpnService : VpnService() {
             val remote = InetSocketAddress(ipHeader.destinationAddress, tcpHeader.destinationPort)
             val uid = trafficAttributor.getUid(6, local, remote)
             val packageName = trafficAttributor.getPackageName(uid)
+            val domainName = dnsCache.get(ipHeader.destinationAddress)
             val status = when {
                 uid == android.os.Process.INVALID_UID -> AttributionStatus.UNATTRIBUTED
                 uid < 10000 -> AttributionStatus.SYSTEM
@@ -157,13 +160,14 @@ class NetShadowVpnService : VpnService() {
                 tcpHeader.destinationPort,
                 uid,
                 packageName,
+                domainName,
                 status
             ).also {
                 serviceScope.launch { _connectionEvents.emit(it) }
             }
         }
         
-        Log.v(TAG, "TCP Packet: ${event.packageName} (UID=${event.uid}) for ${ipHeader.destinationAddress}:${tcpHeader.destinationPort}")
+        Log.v(TAG, "TCP Packet: ${event.packageName} (${event.domainName ?: event.destinationAddress}) (UID=${event.uid})")
     }
 
     private fun processUdpPacket(ipHeader: IpHeader, udpHeader: UdpHeader, packetData: ByteArray) {
@@ -180,6 +184,7 @@ class NetShadowVpnService : VpnService() {
             val remote = InetSocketAddress(ipHeader.destinationAddress, udpHeader.destinationPort)
             val uid = trafficAttributor.getUid(17, local, remote)
             val packageName = trafficAttributor.getPackageName(uid)
+            val domainName = dnsCache.get(ipHeader.destinationAddress)
             val status = when {
                 uid == android.os.Process.INVALID_UID -> AttributionStatus.UNATTRIBUTED
                 uid < 10000 -> AttributionStatus.SYSTEM
@@ -194,6 +199,7 @@ class NetShadowVpnService : VpnService() {
                 udpHeader.destinationPort,
                 uid,
                 packageName,
+                domainName,
                 status
             ).also {
                 serviceScope.launch { _connectionEvents.emit(it) }
@@ -204,6 +210,15 @@ class NetShadowVpnService : VpnService() {
         if (DnsParser.isDnsPacket(udpHeader.destinationPort) || DnsParser.isDnsPacket(udpHeader.sourcePort)) {
             val dnsMessage = DnsParser.parse(packetData, ipHeader.payloadOffset + 8, packetData.size)
             if (dnsMessage != null) {
+                if (dnsMessage.isResponse) {
+                    // Populate DNS Cache from answers
+                    dnsMessage.answers.forEach { record ->
+                        record.address?.let { addr ->
+                            dnsCache.put(addr, record.name)
+                        }
+                    }
+                }
+                
                 val type = if (dnsMessage.isResponse) "Response" else "Query"
                 val qName = dnsMessage.questions.firstOrNull()?.name ?: "unknown"
                 Log.i(TAG, "DNS $type [ID=${dnsMessage.transactionId}]: ${event.packageName} -> $qName")
@@ -211,7 +226,7 @@ class NetShadowVpnService : VpnService() {
                 Log.v(TAG, "UDP Packet: ${event.packageName} (UID=${event.uid}) for ${ipHeader.destinationAddress}:${udpHeader.destinationPort}")
             }
         } else {
-            Log.v(TAG, "UDP Packet: ${event.packageName} (UID=${event.uid}) for ${ipHeader.destinationAddress}:${udpHeader.destinationPort}")
+            Log.v(TAG, "UDP Packet: ${event.packageName} (${event.domainName ?: event.destinationAddress}) (UID=${event.uid})")
         }
     }
 

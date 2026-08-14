@@ -16,6 +16,7 @@ data class ConnectionEvent(
     val destinationPort: Int,
     val uid: Int,
     val packageName: String,
+    val domainName: String? = null,
     val status: AttributionStatus,
     val timestamp: Long = System.currentTimeMillis()
 )
