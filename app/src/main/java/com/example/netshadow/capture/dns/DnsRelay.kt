@@ -4,21 +4,26 @@ import android.net.VpnService
 import android.util.Log
 import com.example.netshadow.capture.parser.IpHeader
 import com.example.netshadow.capture.parser.UdpHeader
-import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.asCoroutineDispatcher
 import kotlinx.coroutines.withContext
 import java.net.DatagramPacket
 import java.net.DatagramSocket
 import java.net.InetAddress
+import java.util.concurrent.Executors
 
 class DnsRelay(private val vpnService: VpnService) {
 
     private val upstreamDns = InetAddress.getByName("8.8.8.8")
+    
+    // Create a bounded dispatcher to limit concurrent DNS requests
+    // and prevent thread exhaustion under heavy load.
+    private val dnsDispatcher = Executors.newFixedThreadPool(16).asCoroutineDispatcher()
 
     suspend fun relay(
         queryData: ByteArray,
         ipHeader: IpHeader,
         udpHeader: UdpHeader
-    ): ByteArray? = withContext(Dispatchers.IO) {
+    ): ByteArray? = withContext(dnsDispatcher) {
         var socket: DatagramSocket? = null
         try {
             socket = DatagramSocket()
