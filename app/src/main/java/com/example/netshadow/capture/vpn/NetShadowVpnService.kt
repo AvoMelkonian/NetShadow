@@ -11,6 +11,7 @@ import android.os.ParcelFileDescriptor
 import android.util.Log
 import androidx.core.app.NotificationCompat
 import com.example.netshadow.MainActivity
+import com.example.netshadow.capture.attribution.TrafficAttributor
 import com.example.netshadow.capture.parser.IpHeader
 import com.example.netshadow.capture.parser.TcpHeader
 import com.example.netshadow.capture.parser.UdpHeader
@@ -20,12 +21,19 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
+import java.net.InetSocketAddress
 
 class NetShadowVpnService : VpnService() {
 
     private var vpnInterface: ParcelFileDescriptor? = null
     private val serviceScope = CoroutineScope(Dispatchers.Main + SupervisorJob())
     private var packetReader: PacketReader? = null
+    private lateinit var trafficAttributor: TrafficAttributor
+
+    override fun onCreate() {
+        super.onCreate()
+        trafficAttributor = TrafficAttributor(this)
+    }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         if (intent?.action == ACTION_STOP) {
@@ -108,11 +116,17 @@ class NetShadowVpnService : VpnService() {
     }
 
     private fun processTcpPacket(ipHeader: IpHeader, tcpHeader: TcpHeader) {
-        Log.d(TAG, "Consumer TCP: $ipHeader | $tcpHeader")
+        val local = InetSocketAddress(ipHeader.sourceAddress, tcpHeader.sourcePort)
+        val remote = InetSocketAddress(ipHeader.destinationAddress, tcpHeader.destinationPort)
+        val uid = trafficAttributor.getUid(6, local, remote)
+        Log.d(TAG, "Consumer TCP [UID=$uid]: $ipHeader | $tcpHeader")
     }
 
     private fun processUdpPacket(ipHeader: IpHeader, udpHeader: UdpHeader) {
-        Log.d(TAG, "Consumer UDP: $ipHeader | $udpHeader")
+        val local = InetSocketAddress(ipHeader.sourceAddress, udpHeader.sourcePort)
+        val remote = InetSocketAddress(ipHeader.destinationAddress, udpHeader.destinationPort)
+        val uid = trafficAttributor.getUid(17, local, remote)
+        Log.d(TAG, "Consumer UDP [UID=$uid]: $ipHeader | $udpHeader")
     }
 
     private fun promoteToForeground() {
