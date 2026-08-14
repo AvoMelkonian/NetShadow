@@ -41,6 +41,7 @@ android {
 }
 
 dependencies {
+    implementation(files("libs/tun2socks.aar"))
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.11.0")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.11.0")
     implementation(platform(libs.androidx.compose.bom))

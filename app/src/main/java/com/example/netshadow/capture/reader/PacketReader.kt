@@ -2,6 +2,8 @@ package com.example.netshadow.capture.reader
 
 import android.os.ParcelFileDescriptor
 import android.util.Log
+import android.system.Os
+import android.system.OsConstants
 import kotlinx.coroutines.*
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.channels.ReceiveChannel
@@ -25,6 +27,11 @@ class PacketReader(
     private val bufferPool = BufferPool(BUFFER_SIZE)
     private val outputStream = FileOutputStream(vpnInterface.fileDescriptor)
     
+    // The Shim FD for tun2socks integration
+    private var shimFd: java.io.FileDescriptor? = null
+    private var shimInputStream: FileInputStream? = null
+    private var shimOutputStream: FileOutputStream? = null
+    
     // Using a buffered channel for backpressure. 
     // Capacity 100 provides a small buffer for spikes without excessive memory use.
     private val packetChannel = Channel<RawPacket>(100)
@@ -37,7 +44,9 @@ class PacketReader(
             Log.e(TAG, "FileDescriptor is invalid")
             return
         }
-        Log.i(TAG, "Starting PacketReader with valid FD")
+        
+        setupShim()
+        Log.i(TAG, "Starting PacketReader with valid FD and Shim")
 
         job = scope.launch(Dispatchers.IO) {
             val inputStream = FileInputStream(fd)
@@ -105,6 +114,53 @@ class PacketReader(
      */
     fun releaseBuffer(buffer: ByteArray) {
         bufferPool.release(buffer)
+    }
+
+    private fun setupShim() {
+        try {
+            // Create a Unix Socket Pair for the tun2socks shim
+            val myFd = java.io.FileDescriptor()
+            val theirFd = java.io.FileDescriptor()
+            Os.socketpair(OsConstants.AF_UNIX, OsConstants.SOCK_SEQPACKET, 0, myFd, theirFd)
+
+            shimFd = myFd
+            shimInputStream = FileInputStream(myFd)
+            shimOutputStream = FileOutputStream(myFd)
+
+            // Return the 'theirFd' integer to be used by Tun2SocksEngine
+            _theirFd = theirFd
+            
+            // Start a loop to read from tun2socks and write back to the real TUN
+            scope.launch(Dispatchers.IO) {
+                val buffer = ByteArray(BUFFER_SIZE)
+                try {
+                    while (isActive) {
+                        val read = shimInputStream?.read(buffer) ?: -1
+                        if (read > 0) {
+                            writePacket(buffer, read)
+                        } else if (read == -1) break
+                    }
+                } catch (e: Exception) {
+                    if (isActive) Log.e(TAG, "Shim read error", e)
+                }
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to setup shim", e)
+        }
+    }
+
+    private var _theirFd: java.io.FileDescriptor? = null
+    val theirFd: java.io.FileDescriptor? get() = _theirFd
+
+    /**
+     * Forwards a packet to the tun2socks engine via the shim.
+     */
+    fun forwardToShim(data: ByteArray, length: Int) {
+        try {
+            shimOutputStream?.write(data, 0, length)
+        } catch (e: Exception) {
+            Log.e(TAG, "Error writing to shim", e)
+        }
     }
 
     fun stop() {

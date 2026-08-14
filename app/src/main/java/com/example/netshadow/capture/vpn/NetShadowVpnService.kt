@@ -15,6 +15,8 @@ import com.example.netshadow.capture.attribution.TrafficAttributor
 import com.example.netshadow.capture.dns.DnsCache
 import com.example.netshadow.capture.dns.DnsParser
 import com.example.netshadow.capture.dns.DnsRelay
+import com.example.netshadow.capture.relay.TcpRelay
+import com.example.netshadow.capture.relay.Tun2SocksEngine
 import com.example.netshadow.capture.relay.SessionManager
 import com.example.netshadow.capture.model.AttributionStatus
 import com.example.netshadow.capture.model.ConnectionEvent
@@ -44,6 +46,7 @@ class NetShadowVpnService : VpnService() {
     private val dnsCache = DnsCache()
     private lateinit var dnsRelay: DnsRelay
     private lateinit var sessionManager: SessionManager
+    private var tcpRelay: TcpRelay? = null
 
     // Connection cache to avoid redundant UID/Package lookups
     private val connectionCache = ConcurrentHashMap<ConnectionKey, ConnectionEvent>()
@@ -101,6 +104,16 @@ class NetShadowVpnService : VpnService() {
             } else {
                 Log.i(TAG, "VPN interface established")
                 startPacketReader(vpnInterface!!)
+                
+                // Start tun2socks on the shim FD provided by PacketReader
+                packetReader?.theirFd?.let { fd ->
+                    // Convert FileDescriptor to Int using reflection or JNI
+                    val fdInt = getFdInt(fd)
+                    Tun2SocksEngine.start(fdInt)
+                }
+
+                tcpRelay = TcpRelay(this, packetReader!!, sessionManager, serviceScope)
+                tcpRelay?.start()
             }
         } catch (e: Exception) {
             Log.e(TAG, "Error establishing VPN interface", e)
@@ -125,6 +138,8 @@ class NetShadowVpnService : VpnService() {
                                 val tcpHeader = TcpHeader.parse(packet.data, ipHeader.payloadOffset, packet.length)
                                 if (tcpHeader != null) {
                                     processTcpPacket(ipHeader, tcpHeader)
+                                    // Forward to tun2socks for the actual TCP relaying
+                                    reader.forwardToShim(packet.data, packet.length)
                                 }
                             }
                             17 -> { // UDP
@@ -290,6 +305,17 @@ class NetShadowVpnService : VpnService() {
         }
     }
 
+    private fun getFdInt(fd: java.io.FileDescriptor): Int {
+        return try {
+            val field = java.io.FileDescriptor::class.java.getDeclaredField("descriptor")
+            field.isAccessible = true
+            field.get(fd) as Int
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to get FD int", e)
+            -1
+        }
+    }
+
     override fun onRevoke() {
         Log.i(TAG, "VPN permission revoked")
         stopVpn()
@@ -297,6 +323,8 @@ class NetShadowVpnService : VpnService() {
     }
 
     private fun stopVpn() {
+        Tun2SocksEngine.stop()
+        tcpRelay?.stop()
         packetReader?.stop()
         packetReader = null
         connectionCache.clear() // Cache invalidation on service stop
