@@ -23,11 +23,10 @@ import com.example.netshadow.capture.parser.IpHeader
 import com.example.netshadow.capture.parser.TcpHeader
 import com.example.netshadow.capture.parser.UdpHeader
 import com.example.netshadow.capture.reader.PacketReader
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.cancel
+import kotlinx.coroutines.*
+import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
@@ -38,7 +37,14 @@ import java.util.concurrent.ConcurrentHashMap
 class NetShadowVpnService : VpnService() {
 
     private var vpnInterface: ParcelFileDescriptor? = null
-    private val serviceScope = CoroutineScope(Dispatchers.Main + SupervisorJob())
+    
+    private val serviceJob = SupervisorJob().apply {
+        invokeOnCompletion {
+            Log.i(TAG, "Service CoroutineScope cancelled. Emission point closed.")
+        }
+    }
+    private val serviceScope = CoroutineScope(Dispatchers.Main + serviceJob)
+    
     private var packetReader: PacketReader? = null
     private lateinit var trafficAttributor: TrafficAttributor
     private val dnsCache = DnsCache()
@@ -50,8 +56,12 @@ class NetShadowVpnService : VpnService() {
     private val connectionCache = ConcurrentHashMap<ConnectionKey, ConnectionEvent>()
 
     // Exposed flow for UI or other observers
-    private val _connectionEvents = MutableSharedFlow<ConnectionEvent>()
-    val connectionEvents = _connectionEvents.asSharedFlow()
+    private val _connectionEvents = MutableSharedFlow<ConnectionEvent>(
+        replay = 0,
+        extraBufferCapacity = 64,
+        onBufferOverflow = BufferOverflow.DROP_OLDEST
+    )
+    val connectionEvents: SharedFlow<ConnectionEvent> = _connectionEvents.asSharedFlow()
 
     override fun onCreate() {
         super.onCreate()
@@ -192,7 +202,7 @@ class NetShadowVpnService : VpnService() {
                 bytesReceived = session.bytesReceived,
                 direction = TrafficDirection.OUTBOUND
             ).also {
-                serviceScope.launch { _connectionEvents.emit(it) }
+                _connectionEvents.tryEmit(it)
             }
         }
         
@@ -238,7 +248,7 @@ class NetShadowVpnService : VpnService() {
                 direction = TrafficDirection.OUTBOUND
             ).also {
                 connectionCache[session.key] = it
-                serviceScope.launch { _connectionEvents.emit(it) }
+                _connectionEvents.tryEmit(it)
             }
         }
 
@@ -246,7 +256,7 @@ class NetShadowVpnService : VpnService() {
         if (dnsQueryName != null && event.resolvedDomain == null) {
             val updatedEvent = event.copy(resolvedDomain = dnsQueryName)
             connectionCache[session.key] = updatedEvent
-            serviceScope.launch { _connectionEvents.emit(updatedEvent) }
+            _connectionEvents.tryEmit(updatedEvent)
         }
 
         // DNS Relay Logic
