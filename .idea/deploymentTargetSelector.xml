@@ -4,10 +4,10 @@
     <selectionStates>
       <SelectionState runConfigName="netshadowconfig">
         <option name="selectionMode" value="DROPDOWN" />
-        <DropdownSelection timestamp="2026-08-17T18:59:08.947563600Z">
+        <DropdownSelection timestamp="2026-08-17T19:56:08.052536600Z">
           <Target type="DEFAULT_BOOT">
             <handle>
-              <DeviceId pluginId="Default" identifier="serial=192.168.1.174:38117;connection=d027cbb2" />
+              <DeviceId pluginId="Default" identifier="serial=192.168.1.174:34601;connection=ec578407" />
             </handle>
           </Target>
         </DropdownSelection>
