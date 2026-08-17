@@ -15,9 +15,12 @@ class SessionManager(
     private val dnsCache: DnsCache
 ) {
     private val sessions = ConcurrentHashMap<ConnectionKey, Session>()
+    
+    val allSessions: Map<ConnectionKey, Session> get() = sessions
 
     /**
      * Retrieves an existing session or creates a new one with attribution.
+     * Returns a Pair containing the session and a boolean indicating if it was newly created.
      */
     fun getOrCreateSession(
         protocol: Int,
@@ -25,7 +28,7 @@ class SessionManager(
         srcPort: Int,
         dstPort: Int,
         payloadLength: Int
-    ): Session {
+    ): Pair<Session, Boolean> {
         val key = ConnectionKey(
             protocol,
             ipHeader.sourceAddress,
@@ -34,7 +37,9 @@ class SessionManager(
             dstPort
         )
 
-        return sessions.getOrPut(key) {
+        var isNew = false
+        val session = sessions.getOrPut(key) {
+            isNew = true
             val local = InetSocketAddress(ipHeader.sourceAddress, srcPort)
             val remote = InetSocketAddress(ipHeader.destinationAddress, dstPort)
             val uid = trafficAttributor.getUid(protocol, local, remote)
@@ -44,9 +49,10 @@ class SessionManager(
             Log.i(TAG, "New Session: $packageName ($domainName) [${key.toShortString()}]")
             
             Session(key, uid, packageName, domainName)
-        }.apply {
-            updateSent(payloadLength)
         }
+        
+        session.updateSent(payloadLength)
+        return Pair(session, isNew)
     }
 
     /**
@@ -64,8 +70,10 @@ class SessionManager(
 
     /**
      * Periodic cleanup of idle sessions (especially UDP).
+     * Returns a list of evicted sessions for final reporting.
      */
-    fun cleanupIdleSessions(udpTimeoutMs: Long = 60_000, tcpTimeoutMs: Long = 300_000) {
+    fun cleanupIdleSessions(udpTimeoutMs: Long = 60_000, tcpTimeoutMs: Long = 300_000): List<Session> {
+        val evicted = mutableListOf<Session>()
         val now = System.currentTimeMillis()
         val iterator = sessions.entries.iterator()
         while (iterator.hasNext()) {
@@ -75,9 +83,11 @@ class SessionManager(
             
             if (now - session.lastActive > timeout) {
                 Log.d(TAG, "Evicting idle session: ${session.packageName} [${session.key.toShortString()}]")
+                evicted.add(session)
                 iterator.remove()
             }
         }
+        return evicted
     }
 
     private fun ConnectionKey.toShortString(): String {

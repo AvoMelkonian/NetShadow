@@ -9,7 +9,7 @@ data class Session(
     val key: ConnectionKey,
     val uid: Int,
     val packageName: String,
-    val domainName: String? = null,
+    var domainName: String? = null,
     var lastActive: Long = System.currentTimeMillis(),
     var isTcpFinished: Boolean = false,
     var packetsSent: Long = 0,

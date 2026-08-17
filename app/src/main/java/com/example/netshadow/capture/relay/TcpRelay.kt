@@ -67,7 +67,7 @@ class TcpRelay(
      * In a real implementation, this would involve spoofing a SYN-ACK back to the TUN.
      */
     fun handleTcpPacket(ipHeader: IpHeader, tcpHeader: TcpHeader, data: ByteArray, length: Int) {
-        val session = sessionManager.getOrCreateSession(
+        val (session, isNew) = sessionManager.getOrCreateSession(
             6, ipHeader, tcpHeader.sourcePort, tcpHeader.destinationPort, length - ipHeader.ihl - tcpHeader.dataOffset
         )
 

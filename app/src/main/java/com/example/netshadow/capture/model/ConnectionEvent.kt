@@ -30,6 +30,7 @@ enum class AttributionStatus {
  * The primary data model for captured network events in NetShadow.
  */
 data class ConnectionEvent(
+    val connectionId: String,
     val timestamp: Long = System.currentTimeMillis(),
     val uid: Int,
     val packageName: String,

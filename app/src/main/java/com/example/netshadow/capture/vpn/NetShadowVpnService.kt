@@ -18,6 +18,7 @@ import com.example.netshadow.capture.dns.DnsRelay
 import com.example.netshadow.capture.relay.TcpRelay
 import com.example.netshadow.capture.relay.Tun2SocksEngine
 import com.example.netshadow.capture.relay.SessionManager
+import com.example.netshadow.capture.relay.Session
 import com.example.netshadow.capture.model.*
 import com.example.netshadow.capture.parser.IpHeader
 import com.example.netshadow.capture.parser.TcpHeader
@@ -52,9 +53,6 @@ class NetShadowVpnService : VpnService() {
     private lateinit var sessionManager: SessionManager
     private var tcpRelay: TcpRelay? = null
 
-    // Connection cache to avoid redundant UID/Package lookups
-    private val connectionCache = ConcurrentHashMap<ConnectionKey, ConnectionEvent>()
-
     // Exposed flow for UI or other observers
     private val _connectionEvents = MutableSharedFlow<ConnectionEvent>(
         replay = 0,
@@ -79,15 +77,55 @@ class NetShadowVpnService : VpnService() {
         promoteToForeground()
         setupVpnInterface()
         startSessionCleanup()
+        startStatsReporting()
         
         return START_STICKY
+    }
+
+    private fun startStatsReporting() {
+        serviceScope.launch(Dispatchers.Default) {
+            while (isActive) {
+                delay(5_000) // Report every 5 seconds
+                sessionManager.allSessions.values.forEach { session ->
+                    emitConnectionEvent(session)
+                }
+            }
+        }
+    }
+
+    private fun emitConnectionEvent(session: Session) {
+        val key = session.key
+        val protocol = when (key.protocol) {
+            6 -> NetworkProtocol.TCP
+            17 -> NetworkProtocol.UDP
+            else -> NetworkProtocol.OTHER
+        }
+
+        val event = ConnectionEvent(
+            connectionId = key.hashCode().toString(),
+            uid = session.uid,
+            packageName = session.packageName,
+            protocol = protocol,
+            srcPort = key.sourcePort,
+            dstIp = key.destinationAddress.hostAddress ?: key.destinationAddress.toString(),
+            dstPort = key.destinationPort,
+            resolvedDomain = session.domainName,
+            bytesSent = session.bytesSent,
+            bytesReceived = session.bytesReceived,
+            direction = TrafficDirection.OUTBOUND
+        )
+        
+        _connectionEvents.tryEmit(event)
     }
 
     private fun startSessionCleanup() {
         serviceScope.launch(Dispatchers.Default) {
             while (isActive) {
                 delay(30_000)
-                sessionManager.cleanupIdleSessions()
+                val evicted = sessionManager.cleanupIdleSessions()
+                evicted.forEach { session ->
+                    emitConnectionEvent(session)
+                }
             }
         }
     }
@@ -172,45 +210,22 @@ class NetShadowVpnService : VpnService() {
     }
 
     private fun processTcpPacket(ipHeader: IpHeader, tcpHeader: TcpHeader) {
-        val session = sessionManager.getOrCreateSession(
+        val (session, isNew) = sessionManager.getOrCreateSession(
             6, ipHeader, tcpHeader.sourcePort, tcpHeader.destinationPort, ipHeader.totalLength - ipHeader.ihl
         )
         
         sessionManager.updateTcpSession(session.key, tcpHeader)
-
-        val event = connectionCache.getOrPut(session.key) {
-            val local = InetSocketAddress(ipHeader.sourceAddress, tcpHeader.sourcePort)
-            val remote = InetSocketAddress(ipHeader.destinationAddress, tcpHeader.destinationPort)
-            val uid = trafficAttributor.getUid(6, local, remote)
-            val packageName = trafficAttributor.getPackageName(uid)
-            val domainName = dnsCache.get(ipHeader.destinationAddress)
-            val status = when {
-                uid == android.os.Process.INVALID_UID -> AttributionStatus.UNATTRIBUTED
-                uid < 10000 -> AttributionStatus.SYSTEM
-                else -> AttributionStatus.RESOLVED
-            }
-            
-            ConnectionEvent(
-                uid = uid,
-                packageName = packageName,
-                protocol = NetworkProtocol.TCP,
-                srcPort = tcpHeader.sourcePort,
-                dstIp = ipHeader.destinationAddress.hostAddress ?: ipHeader.destinationAddress.toString(),
-                dstPort = tcpHeader.destinationPort,
-                resolvedDomain = domainName,
-                bytesSent = session.bytesSent,
-                bytesReceived = session.bytesReceived,
-                direction = TrafficDirection.OUTBOUND
-            ).also {
-                _connectionEvents.tryEmit(it)
-            }
+        
+        // Emit immediately if new session or if TCP is closing
+        if (isNew || tcpHeader.isFin || tcpHeader.isRst) {
+            emitConnectionEvent(session)
         }
         
-        Log.v(TAG, "TCP Packet: ${event.packageName} (${event.resolvedDomain ?: event.dstIp}) (UID=${event.uid})")
+        Log.v(TAG, "TCP Packet: ${session.packageName} (${session.domainName ?: ipHeader.destinationAddress}) (UID=${session.uid})")
     }
 
     private fun processUdpPacket(ipHeader: IpHeader, udpHeader: UdpHeader, packetData: ByteArray, packetLength: Int) {
-        val session = sessionManager.getOrCreateSession(
+        val (session, isNew) = sessionManager.getOrCreateSession(
             17, ipHeader, udpHeader.sourcePort, udpHeader.destinationPort, udpHeader.length - 8
         )
 
@@ -223,40 +238,14 @@ class NetShadowVpnService : VpnService() {
             dnsQueryName = dnsMessage.questions.firstOrNull()?.name
         }
 
-        val event = connectionCache[session.key] ?: run {
-            val local = InetSocketAddress(ipHeader.sourceAddress, udpHeader.sourcePort)
-            val remote = InetSocketAddress(ipHeader.destinationAddress, udpHeader.destinationPort)
-            val uid = trafficAttributor.getUid(17, local, remote)
-            val packageName = trafficAttributor.getPackageName(uid)
-            val domainName = dnsCache.get(ipHeader.destinationAddress)
-            val status = when {
-                uid == android.os.Process.INVALID_UID -> AttributionStatus.UNATTRIBUTED
-                uid < 10000 -> AttributionStatus.SYSTEM
-                else -> AttributionStatus.RESOLVED
-            }
-
-            ConnectionEvent(
-                uid = uid,
-                packageName = packageName,
-                protocol = NetworkProtocol.UDP,
-                srcPort = udpHeader.sourcePort,
-                dstIp = ipHeader.destinationAddress.hostAddress ?: ipHeader.destinationAddress.toString(),
-                dstPort = udpHeader.destinationPort,
-                resolvedDomain = dnsQueryName ?: domainName,
-                bytesSent = session.bytesSent,
-                bytesReceived = session.bytesReceived,
-                direction = TrafficDirection.OUTBOUND
-            ).also {
-                connectionCache[session.key] = it
-                _connectionEvents.tryEmit(it)
-            }
+        // Emit if new session
+        if (isNew) {
+            emitConnectionEvent(session)
         }
 
-        // Update dnsQuery if we just discovered it in an existing session
-        if (dnsQueryName != null && event.resolvedDomain == null) {
-            val updatedEvent = event.copy(resolvedDomain = dnsQueryName)
-            connectionCache[session.key] = updatedEvent
-            _connectionEvents.tryEmit(updatedEvent)
+        // Update domain name in session if found
+        if (dnsQueryName != null && session.domainName == null) {
+            session.domainName = dnsQueryName
         }
 
         // DNS Relay Logic
@@ -290,11 +279,11 @@ class NetShadowVpnService : VpnService() {
             
             val type = if (dnsMessage.isResponse) "Response" else "Query"
             val qName = dnsMessage.questions.firstOrNull()?.name ?: "unknown"
-            Log.i(TAG, "DNS $type [ID=${dnsMessage.transactionId}]: ${event.packageName} -> $qName")
+            Log.i(TAG, "DNS $type [ID=${dnsMessage.transactionId}]: ${session.packageName} -> $qName")
         } else {
             // Forward non-DNS UDP traffic to tun2socks for relaying
             packetReader?.forwardToShim(packetData, packetLength)
-            Log.v(TAG, "UDP Packet Forwarded: ${event.packageName} (${event.resolvedDomain ?: event.dstIp}) (UID=${event.uid})")
+            Log.v(TAG, "UDP Packet Forwarded: ${session.packageName} (${session.domainName ?: ipHeader.destinationAddress}) (UID=${session.uid})")
         }
     }
 
@@ -351,7 +340,6 @@ class NetShadowVpnService : VpnService() {
         tcpRelay?.stop()
         packetReader?.stop()
         packetReader = null
-        connectionCache.clear() // Cache invalidation on service stop
         
         try {
             vpnInterface?.close()
