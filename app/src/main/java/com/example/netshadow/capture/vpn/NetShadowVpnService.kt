@@ -94,6 +94,8 @@ class NetShadowVpnService : VpnService() {
     }
 
     private fun emitConnectionEvent(session: Session) {
+        if (!serviceScope.isActive) return
+
         val key = session.key
         val protocol = when (key.protocol) {
             6 -> NetworkProtocol.TCP
