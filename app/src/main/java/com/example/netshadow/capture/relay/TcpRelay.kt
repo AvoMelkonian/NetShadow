@@ -137,7 +137,7 @@ class TcpRelay(
                 // and write it back to the TUN interface.
                 // packetReader.writePacket(wrapInIpTcp(relaySession, data))
                 
-                relaySession.session.updateActivity(bytesRead)
+                relaySession.session.updateReceived(bytesRead)
                 Log.v(TAG, "Relayed $bytesRead bytes from ${relaySession.session.domainName ?: relaySession.session.key.destinationAddress} to ${relaySession.session.packageName}")
             }
         } catch (e: IOException) {

@@ -1,7 +1,6 @@
 package com.example.netshadow.capture.relay
 
 import com.example.netshadow.capture.model.ConnectionKey
-import java.net.InetAddress
 
 /**
  * Represents a live network session tracked by the VPN.
@@ -14,11 +13,19 @@ data class Session(
     var lastActive: Long = System.currentTimeMillis(),
     var isTcpFinished: Boolean = false,
     var packetsSent: Long = 0,
-    var bytesSent: Long = 0
+    var bytesSent: Long = 0,
+    var packetsReceived: Long = 0,
+    var bytesReceived: Long = 0
 ) {
-    fun updateActivity(bytes: Int) {
+    fun updateSent(bytes: Int) {
         lastActive = System.currentTimeMillis()
         packetsSent++
         bytesSent += bytes
+    }
+
+    fun updateReceived(bytes: Int) {
+        lastActive = System.currentTimeMillis()
+        packetsReceived++
+        bytesReceived += bytes
     }
 }

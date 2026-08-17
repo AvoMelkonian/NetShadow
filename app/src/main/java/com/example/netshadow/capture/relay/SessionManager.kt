@@ -45,7 +45,7 @@ class SessionManager(
             
             Session(key, uid, packageName, domainName)
         }.apply {
-            updateActivity(payloadLength)
+            updateSent(payloadLength)
         }
     }
 

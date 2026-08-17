@@ -18,9 +18,7 @@ import com.example.netshadow.capture.dns.DnsRelay
 import com.example.netshadow.capture.relay.TcpRelay
 import com.example.netshadow.capture.relay.Tun2SocksEngine
 import com.example.netshadow.capture.relay.SessionManager
-import com.example.netshadow.capture.model.AttributionStatus
-import com.example.netshadow.capture.model.ConnectionEvent
-import com.example.netshadow.capture.model.ConnectionKey
+import com.example.netshadow.capture.model.*
 import com.example.netshadow.capture.parser.IpHeader
 import com.example.netshadow.capture.parser.TcpHeader
 import com.example.netshadow.capture.parser.UdpHeader
@@ -183,21 +181,22 @@ class NetShadowVpnService : VpnService() {
             }
             
             ConnectionEvent(
-                protocol = 6,
-                sourceAddress = ipHeader.sourceAddress,
-                sourcePort = tcpHeader.sourcePort,
-                destinationAddress = ipHeader.destinationAddress,
-                destinationPort = tcpHeader.destinationPort,
                 uid = uid,
                 packageName = packageName,
-                domainName = domainName,
-                status = status
+                protocol = NetworkProtocol.TCP,
+                srcPort = tcpHeader.sourcePort,
+                dstIp = ipHeader.destinationAddress.hostAddress ?: ipHeader.destinationAddress.toString(),
+                dstPort = tcpHeader.destinationPort,
+                resolvedDomain = domainName,
+                bytesSent = session.bytesSent,
+                bytesReceived = session.bytesReceived,
+                direction = TrafficDirection.OUTBOUND
             ).also {
                 serviceScope.launch { _connectionEvents.emit(it) }
             }
         }
         
-        Log.v(TAG, "TCP Packet: ${event.packageName} (${event.domainName ?: event.destinationAddress}) (UID=${event.uid})")
+        Log.v(TAG, "TCP Packet: ${event.packageName} (${event.resolvedDomain ?: event.dstIp}) (UID=${event.uid})")
     }
 
     private fun processUdpPacket(ipHeader: IpHeader, udpHeader: UdpHeader, packetData: ByteArray, packetLength: Int) {
@@ -227,16 +226,16 @@ class NetShadowVpnService : VpnService() {
             }
 
             ConnectionEvent(
-                protocol = 17,
-                sourceAddress = ipHeader.sourceAddress,
-                sourcePort = udpHeader.sourcePort,
-                destinationAddress = ipHeader.destinationAddress,
-                destinationPort = udpHeader.destinationPort,
                 uid = uid,
                 packageName = packageName,
-                domainName = domainName,
-                dnsQuery = dnsQueryName,
-                status = status
+                protocol = NetworkProtocol.UDP,
+                srcPort = udpHeader.sourcePort,
+                dstIp = ipHeader.destinationAddress.hostAddress ?: ipHeader.destinationAddress.toString(),
+                dstPort = udpHeader.destinationPort,
+                resolvedDomain = dnsQueryName ?: domainName,
+                bytesSent = session.bytesSent,
+                bytesReceived = session.bytesReceived,
+                direction = TrafficDirection.OUTBOUND
             ).also {
                 connectionCache[session.key] = it
                 serviceScope.launch { _connectionEvents.emit(it) }
@@ -244,8 +243,8 @@ class NetShadowVpnService : VpnService() {
         }
 
         // Update dnsQuery if we just discovered it in an existing session
-        if (dnsQueryName != null && event.dnsQuery == null) {
-            val updatedEvent = event.copy(dnsQuery = dnsQueryName)
+        if (dnsQueryName != null && event.resolvedDomain == null) {
+            val updatedEvent = event.copy(resolvedDomain = dnsQueryName)
             connectionCache[session.key] = updatedEvent
             serviceScope.launch { _connectionEvents.emit(updatedEvent) }
         }
@@ -285,7 +284,7 @@ class NetShadowVpnService : VpnService() {
         } else {
             // Forward non-DNS UDP traffic to tun2socks for relaying
             packetReader?.forwardToShim(packetData, packetLength)
-            Log.v(TAG, "UDP Packet Forwarded: ${event.packageName} (${event.domainName ?: event.destinationAddress}) (UID=${event.uid})")
+            Log.v(TAG, "UDP Packet Forwarded: ${event.packageName} (${event.resolvedDomain ?: event.dstIp}) (UID=${event.uid})")
         }
     }
 

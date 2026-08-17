@@ -1,23 +1,44 @@
 package com.example.netshadow.capture.model
 
-import java.net.InetAddress
+/**
+ * The direction of the network traffic.
+ */
+enum class TrafficDirection {
+    OUTBOUND,
+    INBOUND
+}
 
+/**
+ * Supported network protocols for traffic attribution.
+ */
+enum class NetworkProtocol {
+    TCP,
+    UDP,
+    OTHER
+}
+
+/**
+ * Represents a resolved attribution status for a connection.
+ */
 enum class AttributionStatus {
     RESOLVED,
     UNATTRIBUTED,
     SYSTEM
 }
 
+/**
+ * The primary data model for captured network events in NetShadow.
+ */
 data class ConnectionEvent(
-    val protocol: Int,
-    val sourceAddress: InetAddress,
-    val sourcePort: Int,
-    val destinationAddress: InetAddress,
-    val destinationPort: Int,
+    val timestamp: Long = System.currentTimeMillis(),
     val uid: Int,
     val packageName: String,
-    val domainName: String? = null,
-    val dnsQuery: String? = null,
-    val status: AttributionStatus,
-    val timestamp: Long = System.currentTimeMillis()
+    val protocol: NetworkProtocol,
+    val srcPort: Int,
+    val dstIp: String,
+    val dstPort: Int,
+    val resolvedDomain: String? = null,
+    val bytesSent: Long = 0,
+    val bytesReceived: Long = 0,
+    val direction: TrafficDirection
 )
