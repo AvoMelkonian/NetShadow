@@ -13,5 +13,6 @@ data class AnomalyAlertEntity(
     val severity: Severity,
     val message: String,
     val packageName: String,
-    val connectionId: String?
+    val connectionId: String?,
+    val isRead: Boolean = false
 )
