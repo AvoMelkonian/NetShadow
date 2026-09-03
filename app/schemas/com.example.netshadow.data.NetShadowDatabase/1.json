@@ -2,18 +2,12 @@
   "formatVersion": 1,
   "database": {
     "version": 1,
-    "identityHash": "3e11719e232712744d9f92d4124c4064",
+    "identityHash": "3d7f8d2f823d19e9b5eaf6263ecf1f6a",
     "entities": [
       {
         "tableName": "connection_events",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `connectionId` TEXT NOT NULL, `protocol` INTEGER NOT NULL, `direction` TEXT NOT NULL, `localAddress` TEXT NOT NULL, `localPort` INTEGER NOT NULL, `remoteAddress` TEXT NOT NULL, `remotePort` INTEGER NOT NULL, `packageName` TEXT NOT NULL, `uid` INTEGER NOT NULL, `timestamp` INTEGER NOT NULL, `bytesSent` INTEGER NOT NULL, `bytesReceived` INTEGER NOT NULL)",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`connectionId` TEXT NOT NULL, `protocol` INTEGER NOT NULL, `direction` TEXT NOT NULL, `localAddress` TEXT NOT NULL, `localPort` INTEGER NOT NULL, `remoteAddress` TEXT NOT NULL, `remotePort` INTEGER NOT NULL, `packageName` TEXT NOT NULL, `uid` INTEGER NOT NULL, `timestamp` INTEGER NOT NULL, `bytesSent` INTEGER NOT NULL, `bytesReceived` INTEGER NOT NULL, PRIMARY KEY(`connectionId`))",
         "fields": [
-          {
-            "fieldPath": "id",
-            "columnName": "id",
-            "affinity": "INTEGER",
-            "notNull": true
-          },
           {
             "fieldPath": "connectionId",
             "columnName": "connectionId",
@@ -88,22 +82,11 @@
           }
         ],
         "primaryKey": {
-          "autoGenerate": true,
+          "autoGenerate": false,
           "columnNames": [
-            "id"
+            "connectionId"
           ]
-        },
-        "indices": [
-          {
-            "name": "index_connection_events_connectionId",
-            "unique": false,
-            "columnNames": [
-              "connectionId"
-            ],
-            "orders": [],
-            "createSql": "CREATE INDEX IF NOT EXISTS `index_connection_events_connectionId` ON `${TABLE_NAME}` (`connectionId`)"
-          }
-        ]
+        }
       },
       {
         "tableName": "app_baselines",
@@ -215,7 +198,7 @@
     ],
     "setupQueries": [
       "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
-      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '3e11719e232712744d9f92d4124c4064')"
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '3d7f8d2f823d19e9b5eaf6263ecf1f6a')"
     ]
   }
 }

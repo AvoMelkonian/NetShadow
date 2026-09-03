@@ -2,17 +2,12 @@ package com.example.netshadow.data.entity
 
 import androidx.room.Entity
 import androidx.room.PrimaryKey
-import androidx.room.Index
 import com.example.netshadow.data.model.Protocol
 import com.example.netshadow.data.model.Direction
 
-@Entity(
-    tableName = "connection_events",
-    indices = [Index(value = ["connectionId"])]
-)
+@Entity(tableName = "connection_events")
 data class ConnectionEventEntity(
-    @PrimaryKey(autoGenerate = true) val id: Long = 0,
-    val connectionId: String,
+    @PrimaryKey val connectionId: String,
     val protocol: Protocol,
     val direction: Direction,
     val localAddress: String,

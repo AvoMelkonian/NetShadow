@@ -70,7 +70,7 @@ class DatabaseTest {
             bytesSent = 100,
             bytesReceived = 200
         )
-        eventDao.insert(event)
+        eventDao.upsert(event)
         val events = eventDao.getAllEvents().first()
         assertEquals(events[0].connectionId, "conn_1")
     }

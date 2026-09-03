@@ -13,25 +13,27 @@ import kotlinx.coroutines.withContext
 class TrafficRepository(private val connectionEventDao: ConnectionEventDao) {
 
     suspend fun logConnection(event: ConnectionEvent) = withContext(Dispatchers.IO) {
-        val existing = connectionEventDao.getEventById(event.connectionId)
-        val entity = event.toEntity(existing?.id ?: 0)
-        connectionEventDao.insert(entity)
+        connectionEventDao.upsert(event.toEntity())
     }
 
-    private fun ConnectionEvent.toEntity(id: Long): ConnectionEventEntity {
+    suspend fun logConnections(events: List<ConnectionEvent>) = withContext(Dispatchers.IO) {
+        if (events.isEmpty()) return@withContext
+        connectionEventDao.upsertAll(events.map { it.toEntity() })
+    }
+
+    private fun ConnectionEvent.toEntity(): ConnectionEventEntity {
         return ConnectionEventEntity(
-            id = id,
             connectionId = this.connectionId,
             protocol = when (this.protocol) {
                 NetworkProtocol.TCP -> Protocol.TCP
                 NetworkProtocol.UDP -> Protocol.UDP
-                NetworkProtocol.OTHER -> Protocol.Unknown(0) // Should ideally capture original protocol number
+                NetworkProtocol.OTHER -> Protocol.Unknown(0)
             },
             direction = when (this.direction) {
                 TrafficDirection.INBOUND -> Direction.Inbound
                 TrafficDirection.OUTBOUND -> Direction.Outbound
             },
-            localAddress = "10.0.0.2", // VPN local address
+            localAddress = "10.0.0.2",
             localPort = this.srcPort,
             remoteAddress = this.dstIp,
             remotePort = this.dstPort,

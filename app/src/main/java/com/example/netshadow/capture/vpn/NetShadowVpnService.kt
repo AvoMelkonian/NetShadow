@@ -88,9 +88,24 @@ class NetShadowVpnService : VpnService() {
 
     private fun startTrafficCollection() {
         serviceScope.launch(Dispatchers.Default) {
+            val eventBuffer = ConcurrentHashMap<String, ConnectionEvent>()
+
+            // Periodic flush job
+            launch {
+                while (isActive) {
+                    delay(2000) // Coalesce over a 2-second window
+                    if (eventBuffer.isNotEmpty()) {
+                        val toFlush = eventBuffer.values.toList()
+                        eventBuffer.clear()
+                        Log.d(TAG, "Flushing ${toFlush.size} coalesced events to DB")
+                        trafficRepository.logConnections(toFlush)
+                    }
+                }
+            }
+
             connectionEvents.collect { event ->
-                Log.d(TAG, "Collecting event: ${event.connectionId} - ${event.packageName}")
-                trafficRepository.logConnection(event)
+                // Overwrite with latest update for this connection
+                eventBuffer[event.connectionId] = event
             }
         }
     }
