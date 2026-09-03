@@ -11,6 +11,7 @@ import android.os.ParcelFileDescriptor
 import android.util.Log
 import androidx.core.app.NotificationCompat
 import com.example.netshadow.MainActivity
+import com.example.netshadow.NetShadowApp
 import com.example.netshadow.capture.attribution.TrafficAttributor
 import com.example.netshadow.capture.dns.DnsCache
 import com.example.netshadow.capture.dns.DnsParser
@@ -52,6 +53,8 @@ class NetShadowVpnService : VpnService() {
     private lateinit var dnsRelay: DnsRelay
     private lateinit var sessionManager: SessionManager
     private var tcpRelay: TcpRelay? = null
+    
+    private val trafficRepository by lazy { (application as NetShadowApp).trafficRepository }
 
     // Exposed flow for UI or other observers
     private val _connectionEvents = MutableSharedFlow<ConnectionEvent>(
@@ -78,8 +81,18 @@ class NetShadowVpnService : VpnService() {
         setupVpnInterface()
         startSessionCleanup()
         startStatsReporting()
-        
+        startTrafficCollection()
+
         return START_STICKY
+    }
+
+    private fun startTrafficCollection() {
+        serviceScope.launch(Dispatchers.Default) {
+            connectionEvents.collect { event ->
+                Log.d(TAG, "Collecting event: ${event.connectionId} - ${event.packageName}")
+                trafficRepository.logConnection(event)
+            }
+        }
     }
 
     private fun startStatsReporting() {
@@ -104,7 +117,7 @@ class NetShadowVpnService : VpnService() {
         }
 
         val event = ConnectionEvent(
-            connectionId = key.hashCode().toString(),
+            connectionId = key.toString(),
             uid = session.uid,
             packageName = session.packageName,
             protocol = protocol,

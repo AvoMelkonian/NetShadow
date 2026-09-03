@@ -8,4 +8,8 @@ data class ConnectionKey(
     val sourcePort: Int,
     val destinationAddress: InetAddress,
     val destinationPort: Int
-)
+) {
+    override fun toString(): String {
+        return "$protocol:${sourceAddress.hostAddress}:$sourcePort:${destinationAddress.hostAddress}:$destinationPort"
+    }
+}

@@ -6,6 +6,9 @@ import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface ConnectionEventDao {
+    @Query("SELECT * FROM connection_events WHERE connectionId = :connectionId LIMIT 1")
+    suspend fun getEventById(connectionId: String): ConnectionEventEntity?
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insert(event: ConnectionEventEntity)
 
