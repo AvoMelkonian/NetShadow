@@ -1,0 +1,14 @@
+package com.example.netshadow.data.entity
+
+import androidx.room.Entity
+import androidx.room.PrimaryKey
+
+@Entity(tableName = "app_baselines")
+data class AppBaselineEntity(
+    @PrimaryKey val packageName: String,
+    val allowedDomains: List<String>,
+    val allowedIps: List<String>,
+    val typicalDailyBytesSent: Long,
+    val typicalDailyBytesReceived: Long,
+    val lastUpdated: Long
+)
