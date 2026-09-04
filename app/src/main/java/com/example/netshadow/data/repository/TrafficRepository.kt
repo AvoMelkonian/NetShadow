@@ -24,9 +24,10 @@ import kotlin.math.sqrt
 class TrafficRepository(
     private val connectionEventDao: ConnectionEventDao,
     private val appBaselineDao: AppBaselineDao,
-    private val anomalyAlertDao: AnomalyAlertDao
+    private val anomalyAlertDao: AnomalyAlertDao,
+    private val geoIpService: com.example.netshadow.intelligence.geoip.GeoIpService? = null
 ) {
-    private val ruleEvaluator = RuleEvaluator()
+    private val ruleEvaluator = RuleEvaluator(geoIpService)
 
     suspend fun logConnection(event: ConnectionEvent) = withContext(Dispatchers.IO) {
         val entity = event.toEntity()
@@ -90,10 +91,15 @@ class TrafficRepository(
         // Simple daily average over the window (approximate)
         val typicalDailySent = totalBytesSent / 7
 
+        val allowedCountries = if (geoIpService != null) {
+            destinations.mapNotNull { geoIpService.getCountryCode(it) }.distinct()
+        } else emptyList()
+
         val baseline = AppBaselineEntity(
             packageName = packageName,
             allowedDomains = emptyList(), // Needs DNS resolution integration later
             allowedIps = destinations,
+            allowedCountries = allowedCountries,
             typicalDailyBytesSent = typicalDailySent,
             typicalDailyBytesReceived = 0, // Need to fetch received bytes too
             typicalActiveHours = histogram.toList(),
@@ -108,15 +114,22 @@ class TrafficRepository(
         apps.forEach { computeBaseline(it) }
     }
 
-    suspend fun markAsExpected(packageName: String, target: String, isDomain: Boolean) = withContext(Dispatchers.IO) {
+    suspend fun markAsExpected(packageName: String, target: String, type: ExpectedType) = withContext(Dispatchers.IO) {
         val existing = appBaselineDao.getBaselineForApp(packageName) ?: return@withContext
         
-        val updatedBaseline = if (isDomain) {
-            if (existing.allowedDomains.contains(target)) return@withContext
-            existing.copy(allowedDomains = existing.allowedDomains + target)
-        } else {
-            if (existing.allowedIps.contains(target)) return@withContext
-            existing.copy(allowedIps = existing.allowedIps + target)
+        val updatedBaseline = when (type) {
+            ExpectedType.DOMAIN -> {
+                if (existing.allowedDomains.contains(target)) return@withContext
+                existing.copy(allowedDomains = existing.allowedDomains + target)
+            }
+            ExpectedType.IP -> {
+                if (existing.allowedIps.contains(target)) return@withContext
+                existing.copy(allowedIps = existing.allowedIps + target)
+            }
+            ExpectedType.COUNTRY -> {
+                if (existing.allowedCountries.contains(target)) return@withContext
+                existing.copy(allowedCountries = existing.allowedCountries + target)
+            }
         }
         
         appBaselineDao.insertOrUpdate(updatedBaseline)
@@ -167,3 +180,7 @@ data class TrafficStats(
     val mean: Double,
     val stdDev: Double
 )
+
+enum class ExpectedType {
+    DOMAIN, IP, COUNTRY
+}

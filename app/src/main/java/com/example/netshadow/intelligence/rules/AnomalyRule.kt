@@ -5,6 +5,7 @@ import com.example.netshadow.data.entity.ConnectionEventEntity
 import com.example.netshadow.data.model.AlertType
 import com.example.netshadow.data.model.Severity
 import com.example.netshadow.data.repository.TrafficStats
+import com.example.netshadow.intelligence.geoip.GeoIpService
 import java.util.Calendar
 
 data class RuleResult(
@@ -111,13 +112,24 @@ class NewIpRule : AnomalyRule {
     }
 }
 
-class NewCountryRule : AnomalyRule {
+class NewCountryRule(private val geoIpService: GeoIpService?) : AnomalyRule {
     override fun evaluate(
         event: ConnectionEventEntity,
         baseline: AppBaselineEntity?,
         stats: TrafficStats?
     ): RuleResult? {
-        // Placeholder for GeoIP logic
-        return null
+        if (baseline == null || geoIpService == null) return null
+        
+        val countryCode = geoIpService.getCountryCode(event.remoteAddress) ?: return null
+        
+        return if (!baseline.allowedCountries.contains(countryCode)) {
+            RuleResult(
+                isAnomaly = true,
+                type = AlertType.UNAUTHORIZED_DOMAIN, // Could add NEW_COUNTRY
+                severity = Severity.HIGH,
+                message = "Connection to new country: $countryCode",
+                target = countryCode
+            )
+        } else null
     }
 }

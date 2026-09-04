@@ -8,6 +8,7 @@ data class AppBaselineEntity(
     @PrimaryKey val packageName: String,
     val allowedDomains: List<String>,
     val allowedIps: List<String>,
+    val allowedCountries: List<String>,
     val typicalDailyBytesSent: Long,
     val typicalDailyBytesReceived: Long,
     val typicalActiveHours: List<Int>, // 24-hour histogram

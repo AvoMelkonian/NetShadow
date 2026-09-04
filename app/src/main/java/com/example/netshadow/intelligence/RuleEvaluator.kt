@@ -3,15 +3,16 @@ package com.example.netshadow.intelligence
 import com.example.netshadow.data.entity.AppBaselineEntity
 import com.example.netshadow.data.entity.ConnectionEventEntity
 import com.example.netshadow.data.repository.TrafficStats
+import com.example.netshadow.intelligence.geoip.GeoIpService
 import com.example.netshadow.intelligence.rules.*
 
-class RuleEvaluator {
+class RuleEvaluator(private val geoIpService: GeoIpService? = null) {
     private val rules = listOf(
         ByteSpikeRule(),
         UnusualHourRule(),
         NewDomainRule(),
         NewIpRule(),
-        NewCountryRule()
+        NewCountryRule(geoIpService)
     )
 
     fun evaluateAll(

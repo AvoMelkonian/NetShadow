@@ -45,6 +45,13 @@
                 android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
                 android:value="vpn" />
         </service>
+
+        <receiver android:name=".intelligence.geoip.GeoIpReceiver"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="com.example.netshadow.LOOKUP_IP" />
+            </intent-filter>
+        </receiver>
     </application>
 
 </manifest>

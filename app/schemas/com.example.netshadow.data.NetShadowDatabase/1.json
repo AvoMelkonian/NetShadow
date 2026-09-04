@@ -2,7 +2,7 @@
   "formatVersion": 1,
   "database": {
     "version": 1,
-    "identityHash": "8f78b6d94dff4d68237743f1d0e1fa01",
+    "identityHash": "b74de1d604ca8846e3539f4fc05fb0af",
     "entities": [
       {
         "tableName": "connection_events",
@@ -95,7 +95,7 @@
       },
       {
         "tableName": "app_baselines",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`packageName` TEXT NOT NULL, `allowedDomains` TEXT NOT NULL, `allowedIps` TEXT NOT NULL, `typicalDailyBytesSent` INTEGER NOT NULL, `typicalDailyBytesReceived` INTEGER NOT NULL, `typicalActiveHours` TEXT NOT NULL, `lastUpdated` INTEGER NOT NULL, PRIMARY KEY(`packageName`))",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`packageName` TEXT NOT NULL, `allowedDomains` TEXT NOT NULL, `allowedIps` TEXT NOT NULL, `allowedCountries` TEXT NOT NULL, `typicalDailyBytesSent` INTEGER NOT NULL, `typicalDailyBytesReceived` INTEGER NOT NULL, `typicalActiveHours` TEXT NOT NULL, `lastUpdated` INTEGER NOT NULL, PRIMARY KEY(`packageName`))",
         "fields": [
           {
             "fieldPath": "packageName",
@@ -112,6 +112,12 @@
           {
             "fieldPath": "allowedIps",
             "columnName": "allowedIps",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "allowedCountries",
+            "columnName": "allowedCountries",
             "affinity": "TEXT",
             "notNull": true
           },
@@ -227,7 +233,7 @@
     ],
     "setupQueries": [
       "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
-      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '8f78b6d94dff4d68237743f1d0e1fa01')"
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, 'b74de1d604ca8846e3539f4fc05fb0af')"
     ]
   }
 }

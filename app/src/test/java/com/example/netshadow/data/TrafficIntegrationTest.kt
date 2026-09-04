@@ -11,6 +11,7 @@ import com.example.netshadow.data.entity.AppBaselineEntity
 import com.example.netshadow.data.entity.ConnectionEventEntity
 import com.example.netshadow.data.model.Direction
 import com.example.netshadow.data.model.Protocol
+import com.example.netshadow.data.repository.ExpectedType
 import com.example.netshadow.data.repository.TrafficRepository
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -43,7 +44,8 @@ class TrafficIntegrationTest {
         repository = TrafficRepository(
             db.connectionEventDao(),
             db.appBaselineDao(),
-            db.anomalyAlertDao()
+            db.anomalyAlertDao(),
+            null
         )
     }
 
@@ -204,6 +206,7 @@ class TrafficIntegrationTest {
             packageName = packageName,
             allowedDomains = emptyList(),
             allowedIps = emptyList(),
+            allowedCountries = emptyList(),
             typicalDailyBytesSent = 1000,
             typicalDailyBytesReceived = 1000,
             typicalActiveHours = List(24) { 1 },
@@ -252,6 +255,7 @@ class TrafficIntegrationTest {
                 packageName = packageName,
                 allowedDomains = emptyList(),
                 allowedIps = emptyList(),
+                allowedCountries = emptyList(),
                 typicalDailyBytesSent = 0,
                 typicalDailyBytesReceived = 0,
                 typicalActiveHours = List(24) { 1 },
@@ -279,7 +283,7 @@ class TrafficIntegrationTest {
         val initialAlertCount = alerts.size
 
         // 3. Mark as Expected
-        repository.markAsExpected(packageName, targetIp, isDomain = false)
+        repository.markAsExpected(packageName, targetIp, ExpectedType.IP)
         
         // Verify baseline updated
         val baseline = db.appBaselineDao().getBaselineForApp(packageName)

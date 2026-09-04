@@ -82,6 +82,7 @@ class DatabaseTest {
             packageName = "com.test.app",
             allowedDomains = listOf("google.com", "github.com"),
             allowedIps = listOf("8.8.8.8"),
+            allowedCountries = listOf("US"),
             typicalDailyBytesSent = 1000,
             typicalDailyBytesReceived = 2000,
             typicalActiveHours = List(24) { 0 },

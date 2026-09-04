@@ -1,15 +1,22 @@
 package com.example.netshadow.intelligence
 
+import androidx.test.core.app.ApplicationProvider
 import com.example.netshadow.data.entity.AppBaselineEntity
 import com.example.netshadow.data.entity.ConnectionEventEntity
 import com.example.netshadow.data.model.Direction
 import com.example.netshadow.data.model.Protocol
 import com.example.netshadow.data.repository.TrafficStats
+import com.example.netshadow.intelligence.geoip.GeoIpService
 import com.example.netshadow.intelligence.rules.*
 import org.junit.Assert.*
 import org.junit.Test
+import org.junit.runner.RunWith
+import org.robolectric.RobolectricTestRunner
+import org.robolectric.annotation.Config
 import java.util.Calendar
 
+@RunWith(RobolectricTestRunner::class)
+@Config(sdk = [34])
 class RuleTest {
 
     private fun createBaseEvent(
@@ -36,11 +43,13 @@ class RuleTest {
     private fun createBaseBaseline(
         allowedIps: List<String> = listOf("8.8.8.8"),
         allowedDomains: List<String> = listOf("google.com"),
+        allowedCountries: List<String> = listOf("US"),
         typicalActiveHours: List<Int> = List(24) { 1 }
     ) = AppBaselineEntity(
         packageName = "com.test",
         allowedDomains = allowedDomains,
         allowedIps = allowedIps,
+        allowedCountries = allowedCountries,
         typicalDailyBytesSent = 1000,
         typicalDailyBytesReceived = 1000,
         typicalActiveHours = typicalActiveHours,
@@ -113,5 +122,30 @@ class RuleTest {
         val result = rule.evaluate(createBaseEvent(remoteAddress = "1.1.1.1"), baseline, null)
         assertNotNull(result)
         assertTrue(result!!.isAnomaly)
+    }
+
+    @Test
+    fun testNewCountryRule() {
+        val mockGeoIpService = object : GeoIpService(ApplicationProvider.getApplicationContext()) {
+            override fun getCountryCode(ipAddress: String): String? {
+                return when (ipAddress) {
+                    "8.8.8.8" -> "US"
+                    "1.1.1.1" -> "AU"
+                    else -> null
+                }
+            }
+        }
+        
+        val rule = NewCountryRule(mockGeoIpService)
+        val baseline = createBaseBaseline(allowedCountries = listOf("US"))
+        
+        // Known Country
+        assertNull(rule.evaluate(createBaseEvent(remoteAddress = "8.8.8.8"), baseline, null))
+        
+        // New Country
+        val result = rule.evaluate(createBaseEvent(remoteAddress = "1.1.1.1"), baseline, null)
+        assertNotNull(result)
+        assertTrue(result!!.isAnomaly)
+        assertEquals("AU", result.target)
     }
 }
