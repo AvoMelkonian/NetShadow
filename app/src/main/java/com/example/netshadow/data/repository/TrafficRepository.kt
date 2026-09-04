@@ -109,6 +109,7 @@ class TrafficRepository(
             packageName = this.packageName,
             uid = this.uid,
             timestamp = this.timestamp,
+            resolvedDomain = this.resolvedDomain,
             bytesSent = this.bytesSent,
             bytesReceived = this.bytesReceived
         )

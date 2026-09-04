@@ -17,6 +17,7 @@ data class ConnectionEventEntity(
     val packageName: String,
     val uid: Int,
     val timestamp: Long,
+    val resolvedDomain: String? = null,
     val bytesSent: Long,
     val bytesReceived: Long
 )
