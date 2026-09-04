@@ -108,6 +108,20 @@ class TrafficRepository(
         apps.forEach { computeBaseline(it) }
     }
 
+    suspend fun markAsExpected(packageName: String, target: String, isDomain: Boolean) = withContext(Dispatchers.IO) {
+        val existing = appBaselineDao.getBaselineForApp(packageName) ?: return@withContext
+        
+        val updatedBaseline = if (isDomain) {
+            if (existing.allowedDomains.contains(target)) return@withContext
+            existing.copy(allowedDomains = existing.allowedDomains + target)
+        } else {
+            if (existing.allowedIps.contains(target)) return@withContext
+            existing.copy(allowedIps = existing.allowedIps + target)
+        }
+        
+        appBaselineDao.insertOrUpdate(updatedBaseline)
+    }
+
     fun getKnownDestinations(packageName: String, since: Long): Flow<List<String>> {
         return connectionEventDao.getKnownDestinations(packageName, since)
     }

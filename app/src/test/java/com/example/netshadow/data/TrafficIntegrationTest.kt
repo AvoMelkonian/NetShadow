@@ -240,4 +240,56 @@ class TrafficIntegrationTest {
         val alertsAfter = db.anomalyAlertDao().getAllAlerts().first()
         assertEquals(2, alertsAfter.size)
     }
+
+    @Test
+    fun testFeedbackLoop() = runBlocking {
+        val packageName = "com.test.feedback"
+        val targetIp = "1.2.3.4"
+        
+        // 1. Initial Baseline (empty)
+        db.appBaselineDao().insertOrUpdate(
+            AppBaselineEntity(
+                packageName = packageName,
+                allowedDomains = emptyList(),
+                allowedIps = emptyList(),
+                typicalDailyBytesSent = 0,
+                typicalDailyBytesReceived = 0,
+                typicalActiveHours = List(24) { 1 },
+                lastUpdated = System.currentTimeMillis()
+            )
+        )
+
+        val event = ConnectionEvent(
+            connectionId = "conn_f_1",
+            uid = 1000,
+            packageName = packageName,
+            protocol = NetworkProtocol.TCP,
+            srcPort = 1234,
+            dstIp = targetIp,
+            dstPort = 80,
+            direction = TrafficDirection.OUTBOUND,
+            bytesSent = 100,
+            bytesReceived = 0
+        )
+
+        // 2. Log connection -> Should trigger alert
+        repository.logConnection(event)
+        val alerts = db.anomalyAlertDao().getAllAlerts().first()
+        assertTrue(alerts.any { it.target == targetIp })
+        val initialAlertCount = alerts.size
+
+        // 3. Mark as Expected
+        repository.markAsExpected(packageName, targetIp, isDomain = false)
+        
+        // Verify baseline updated
+        val baseline = db.appBaselineDao().getBaselineForApp(packageName)
+        assertTrue(baseline?.allowedIps?.contains(targetIp) == true)
+
+        // 4. Log connection again (different connection ID)
+        repository.logConnection(event.copy(connectionId = "conn_f_2"))
+        
+        // 5. Verify NO new alert was generated
+        val alertsAfter = db.anomalyAlertDao().getAllAlerts().first()
+        assertEquals("No new alerts should be created for expected target", initialAlertCount, alertsAfter.size)
+    }
 }
