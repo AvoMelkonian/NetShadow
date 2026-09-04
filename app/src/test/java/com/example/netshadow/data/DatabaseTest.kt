@@ -84,6 +84,7 @@ class DatabaseTest {
             allowedIps = listOf("8.8.8.8"),
             typicalDailyBytesSent = 1000,
             typicalDailyBytesReceived = 2000,
+            typicalActiveHours = List(24) { 0 },
             lastUpdated = System.currentTimeMillis()
         )
         baselineDao.insertOrUpdate(baseline)

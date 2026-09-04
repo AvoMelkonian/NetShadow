@@ -82,8 +82,19 @@ class NetShadowVpnService : VpnService() {
         startSessionCleanup()
         startStatsReporting()
         startTrafficCollection()
+        startBaselineComputing()
 
         return START_STICKY
+    }
+
+    private fun startBaselineComputing() {
+        serviceScope.launch(Dispatchers.Default) {
+            while (isActive) {
+                Log.i(TAG, "Starting periodic baseline recomputation")
+                trafficRepository.recomputeAllBaselines()
+                delay(24 * 3600000L) // Once a day
+            }
+        }
     }
 
     private fun startTrafficCollection() {

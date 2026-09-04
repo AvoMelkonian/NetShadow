@@ -39,7 +39,10 @@ class TrafficIntegrationTest {
     fun createDb() {
         val context = ApplicationProvider.getApplicationContext<Context>()
         db = Room.inMemoryDatabaseBuilder(context, NetShadowDatabase::class.java).build()
-        repository = TrafficRepository(db.connectionEventDao())
+        repository = TrafficRepository(
+            db.connectionEventDao(),
+            db.appBaselineDao()
+        )
     }
 
     @After
@@ -147,5 +150,45 @@ class TrafficIntegrationTest {
         assertEquals(5, destinations.size)
         assertTrue(destinations.contains("8.8.8.0"))
         assertTrue(destinations.contains("8.8.8.4"))
+    }
+
+    @Test
+    fun testComputeBaseline() = runBlocking {
+        val packageName = "com.test.baseline"
+        val now = System.currentTimeMillis()
+        val hourMs = 3600000L
+
+        // Generate traffic for two different hours
+        val timestamps = listOf(
+            now - 24 * hourMs, // 1 day ago, current hour
+            now - 25 * hourMs  // 1 day ago, 1 hour before
+        )
+
+        timestamps.forEachIndexed { index, ts ->
+            db.connectionEventDao().upsert(
+                ConnectionEventEntity(
+                    connectionId = "conn_b_$index",
+                    protocol = Protocol.TCP,
+                    direction = Direction.Outbound,
+                    localAddress = "10.0.0.2",
+                    localPort = 2000 + index,
+                    remoteAddress = "1.2.3.$index",
+                    remotePort = 80,
+                    packageName = packageName,
+                    uid = 2000,
+                    timestamp = ts,
+                    bytesSent = 1000,
+                    bytesReceived = 0
+                )
+            )
+        }
+
+        repository.computeBaseline(packageName)
+
+        val baseline = db.appBaselineDao().getBaselineForApp(packageName)
+        assertEquals(packageName, baseline?.packageName)
+        assertEquals(2, baseline?.allowedIps?.size)
+        // typicalActiveHours should have two slots filled with 1
+        assertEquals(2, baseline?.typicalActiveHours?.count { it > 0 })
     }
 }

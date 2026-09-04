@@ -6,5 +6,10 @@ import com.example.netshadow.data.repository.TrafficRepository
 
 class NetShadowApp : Application() {
     val database by lazy { NetShadowDatabase.getDatabase(this) }
-    val trafficRepository by lazy { TrafficRepository(database.connectionEventDao()) }
+    val trafficRepository by lazy { 
+        TrafficRepository(
+            database.connectionEventDao(),
+            database.appBaselineDao()
+        ) 
+    }
 }

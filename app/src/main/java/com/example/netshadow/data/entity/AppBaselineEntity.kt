@@ -10,5 +10,6 @@ data class AppBaselineEntity(
     val allowedIps: List<String>,
     val typicalDailyBytesSent: Long,
     val typicalDailyBytesReceived: Long,
+    val typicalActiveHours: List<Int>, // 24-hour histogram
     val lastUpdated: Long
 )

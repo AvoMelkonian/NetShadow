@@ -21,6 +21,9 @@ interface ConnectionEventDao {
     @Query("SELECT * FROM connection_events WHERE timestamp BETWEEN :startTime AND :endTime ORDER BY timestamp DESC")
     fun getEventsInTimeRange(startTime: Long, endTime: Long): Flow<List<ConnectionEventEntity>>
 
+    @Query("SELECT DISTINCT packageName FROM connection_events")
+    suspend fun getAllPackageNames(): List<String>
+
     @Query("SELECT packageName, SUM(bytesSent) as totalSent, SUM(bytesReceived) as totalReceived FROM connection_events GROUP BY packageName")
     fun getAppTrafficAggregation(): Flow<List<AppTrafficStats>>
 

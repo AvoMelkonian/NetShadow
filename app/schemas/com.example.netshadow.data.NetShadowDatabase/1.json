@@ -2,7 +2,7 @@
   "formatVersion": 1,
   "database": {
     "version": 1,
-    "identityHash": "3d7f8d2f823d19e9b5eaf6263ecf1f6a",
+    "identityHash": "87246a5d87f1f19e02eddbd2a002dae7",
     "entities": [
       {
         "tableName": "connection_events",
@@ -90,7 +90,7 @@
       },
       {
         "tableName": "app_baselines",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`packageName` TEXT NOT NULL, `allowedDomains` TEXT NOT NULL, `allowedIps` TEXT NOT NULL, `typicalDailyBytesSent` INTEGER NOT NULL, `typicalDailyBytesReceived` INTEGER NOT NULL, `lastUpdated` INTEGER NOT NULL, PRIMARY KEY(`packageName`))",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`packageName` TEXT NOT NULL, `allowedDomains` TEXT NOT NULL, `allowedIps` TEXT NOT NULL, `typicalDailyBytesSent` INTEGER NOT NULL, `typicalDailyBytesReceived` INTEGER NOT NULL, `typicalActiveHours` TEXT NOT NULL, `lastUpdated` INTEGER NOT NULL, PRIMARY KEY(`packageName`))",
         "fields": [
           {
             "fieldPath": "packageName",
@@ -120,6 +120,12 @@
             "fieldPath": "typicalDailyBytesReceived",
             "columnName": "typicalDailyBytesReceived",
             "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "typicalActiveHours",
+            "columnName": "typicalActiveHours",
+            "affinity": "TEXT",
             "notNull": true
           },
           {
@@ -198,7 +204,7 @@
     ],
     "setupQueries": [
       "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
-      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '3d7f8d2f823d19e9b5eaf6263ecf1f6a')"
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '87246a5d87f1f19e02eddbd2a002dae7')"
     ]
   }
 }
