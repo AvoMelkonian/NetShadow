@@ -7,6 +7,7 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.example.netshadow.capture.model.ConnectionEvent
 import com.example.netshadow.capture.model.NetworkProtocol
 import com.example.netshadow.capture.model.TrafficDirection
+import com.example.netshadow.data.entity.AppBaselineEntity
 import com.example.netshadow.data.entity.ConnectionEventEntity
 import com.example.netshadow.data.model.Direction
 import com.example.netshadow.data.model.Protocol
@@ -41,7 +42,8 @@ class TrafficIntegrationTest {
         db = Room.inMemoryDatabaseBuilder(context, NetShadowDatabase::class.java).build()
         repository = TrafficRepository(
             db.connectionEventDao(),
-            db.appBaselineDao()
+            db.appBaselineDao(),
+            db.anomalyAlertDao()
         )
     }
 
@@ -190,5 +192,52 @@ class TrafficIntegrationTest {
         assertEquals(2, baseline?.allowedIps?.size)
         // typicalActiveHours should have two slots filled with 1
         assertEquals(2, baseline?.typicalActiveHours?.count { it > 0 })
+    }
+
+    @Test
+    fun testAlertDeduplication() = runBlocking {
+        val packageName = "com.test.dedup"
+        val now = System.currentTimeMillis()
+        
+        // Baseline with NO allowed IPs
+        val baseline = AppBaselineEntity(
+            packageName = packageName,
+            allowedDomains = emptyList(),
+            allowedIps = emptyList(),
+            typicalDailyBytesSent = 1000,
+            typicalDailyBytesReceived = 1000,
+            typicalActiveHours = List(24) { 1 },
+            lastUpdated = now
+        )
+        db.appBaselineDao().insertOrUpdate(baseline)
+
+        val event = ConnectionEvent(
+            connectionId = "conn_alert_1",
+            uid = 1000,
+            packageName = packageName,
+            protocol = NetworkProtocol.TCP,
+            srcPort = 1234,
+            dstIp = "9.9.9.9",
+            dstPort = 443,
+            direction = TrafficDirection.OUTBOUND,
+            bytesSent = 100,
+            bytesReceived = 0
+        )
+
+        // Log the same connection twice
+        repository.logConnection(event)
+        repository.logConnection(event.copy(connectionId = "conn_alert_2")) // Same IP, different conn ID
+
+        val alerts = db.anomalyAlertDao().getAllAlerts().first()
+        
+        // Should only have 1 alert for the new IP "9.9.9.9"
+        assertEquals(1, alerts.size)
+        assertEquals("9.9.9.9", alerts[0].target)
+        
+        // Log a DIFFERENT connection to a DIFFERENT IP
+        repository.logConnection(event.copy(connectionId = "conn_alert_3", dstIp = "1.1.1.1"))
+        
+        val alertsAfter = db.anomalyAlertDao().getAllAlerts().first()
+        assertEquals(2, alertsAfter.size)
     }
 }

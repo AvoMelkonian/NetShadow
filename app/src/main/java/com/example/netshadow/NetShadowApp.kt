@@ -9,7 +9,8 @@ class NetShadowApp : Application() {
     val trafficRepository by lazy { 
         TrafficRepository(
             database.connectionEventDao(),
-            database.appBaselineDao()
+            database.appBaselineDao(),
+            database.anomalyAlertDao()
         ) 
     }
 }

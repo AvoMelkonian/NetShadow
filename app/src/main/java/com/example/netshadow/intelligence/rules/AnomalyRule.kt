@@ -11,7 +11,8 @@ data class RuleResult(
     val isAnomaly: Boolean,
     val type: AlertType,
     val severity: Severity,
-    val message: String
+    val message: String,
+    val target: String? = null
 )
 
 interface AnomalyRule {
@@ -38,7 +39,8 @@ class ByteSpikeRule : AnomalyRule {
                 isAnomaly = true,
                 type = AlertType.HIGH_TRAFFIC_VOLUME,
                 severity = Severity.HIGH,
-                message = "Traffic spike detected: ${event.bytesSent} bytes (Threshold: ${threshold.toLong()})"
+                message = "Traffic spike detected: ${event.bytesSent} bytes (Threshold: ${threshold.toLong()})",
+                target = "spike" // Generic target for volume anomalies
             )
         } else null
     }
@@ -62,7 +64,8 @@ class UnusualHourRule : AnomalyRule {
                 isAnomaly = true,
                 type = AlertType.UNUSUAL_PORT, // Reusing type or could add UNUSUAL_TIME
                 severity = Severity.MEDIUM,
-                message = "Activity at unusual hour: $hour:00"
+                message = "Activity at unusual hour: $hour:00",
+                target = hour.toString()
             )
         } else null
     }
@@ -81,7 +84,8 @@ class NewDomainRule : AnomalyRule {
                 isAnomaly = true,
                 type = AlertType.UNAUTHORIZED_DOMAIN,
                 severity = Severity.MEDIUM,
-                message = "Connection to new domain: ${event.resolvedDomain}"
+                message = "Connection to new domain: ${event.resolvedDomain}",
+                target = event.resolvedDomain
             )
         } else null
     }
@@ -100,7 +104,8 @@ class NewIpRule : AnomalyRule {
                 isAnomaly = true,
                 type = AlertType.UNAUTHORIZED_DOMAIN, // Reusing for new destination
                 severity = Severity.LOW,
-                message = "Connection to new IP address: ${event.remoteAddress}"
+                message = "Connection to new IP address: ${event.remoteAddress}",
+                target = event.remoteAddress
             )
         } else null
     }

@@ -104,7 +104,7 @@ class DatabaseTest {
             packageName = "com.test.app",
             connectionId = "conn_1"
         )
-        alertDao.insert(alert)
+        alertDao.insertIgnore(alert)
         val alerts = alertDao.getAllAlerts().first()
         assertEquals(alerts[0].type, AlertType.MALICIOUS_IP)
     }

@@ -3,13 +3,16 @@ package com.example.netshadow.data.repository
 import com.example.netshadow.capture.model.ConnectionEvent
 import com.example.netshadow.capture.model.NetworkProtocol
 import com.example.netshadow.capture.model.TrafficDirection
+import com.example.netshadow.data.dao.AnomalyAlertDao
 import com.example.netshadow.data.dao.AppBaselineDao
 import com.example.netshadow.data.dao.ConnectionEventDao
 import com.example.netshadow.data.dao.HourlyTraffic
+import com.example.netshadow.data.entity.AnomalyAlertEntity
 import com.example.netshadow.data.entity.AppBaselineEntity
 import com.example.netshadow.data.entity.ConnectionEventEntity
 import com.example.netshadow.data.model.Direction
 import com.example.netshadow.data.model.Protocol
+import com.example.netshadow.intelligence.RuleEvaluator
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
@@ -20,16 +23,46 @@ import kotlin.math.sqrt
 
 class TrafficRepository(
     private val connectionEventDao: ConnectionEventDao,
-    private val appBaselineDao: AppBaselineDao
+    private val appBaselineDao: AppBaselineDao,
+    private val anomalyAlertDao: AnomalyAlertDao
 ) {
+    private val ruleEvaluator = RuleEvaluator()
 
     suspend fun logConnection(event: ConnectionEvent) = withContext(Dispatchers.IO) {
-        connectionEventDao.upsert(event.toEntity())
+        val entity = event.toEntity()
+        connectionEventDao.upsert(entity)
+        evaluateRules(entity)
     }
 
     suspend fun logConnections(events: List<ConnectionEvent>) = withContext(Dispatchers.IO) {
         if (events.isEmpty()) return@withContext
-        connectionEventDao.upsertAll(events.map { it.toEntity() })
+        val entities = events.map { it.toEntity() }
+        connectionEventDao.upsertAll(entities)
+        
+        entities.forEach { evaluateRules(it) }
+    }
+
+    private suspend fun evaluateRules(event: ConnectionEventEntity) {
+        val baseline = appBaselineDao.getBaselineForApp(event.packageName)
+        // For stats, we might need a cache or a window. 
+        // For simplicity now, we'll fetch stats from the last 7 days.
+        val since = System.currentTimeMillis() - 7 * 24 * 3600000L
+        val stats = getHourlyStats(event.packageName, since).first()
+        
+        val results = ruleEvaluator.evaluateAll(event, baseline, stats)
+        
+        results.forEach { result ->
+            val alert = AnomalyAlertEntity(
+                timestamp = System.currentTimeMillis(),
+                type = result.type,
+                severity = result.severity,
+                message = result.message,
+                packageName = event.packageName,
+                connectionId = event.connectionId,
+                target = result.target
+            )
+            anomalyAlertDao.insertIgnore(alert)
+        }
     }
 
     suspend fun computeBaseline(packageName: String) = withContext(Dispatchers.IO) {

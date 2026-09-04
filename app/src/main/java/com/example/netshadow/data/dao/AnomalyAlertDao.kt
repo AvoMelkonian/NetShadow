@@ -6,8 +6,8 @@ import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface AnomalyAlertDao {
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
-    suspend fun insert(alert: AnomalyAlertEntity)
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
+    suspend fun insertIgnore(alert: AnomalyAlertEntity)
 
     @Query("SELECT * FROM anomaly_alerts ORDER BY timestamp DESC")
     fun getAllAlerts(): Flow<List<AnomalyAlertEntity>>

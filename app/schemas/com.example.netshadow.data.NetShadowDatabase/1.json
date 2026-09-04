@@ -2,7 +2,7 @@
   "formatVersion": 1,
   "database": {
     "version": 1,
-    "identityHash": "536e7bb5fe488b6388ef7fb3baf9d651",
+    "identityHash": "8f78b6d94dff4d68237743f1d0e1fa01",
     "entities": [
       {
         "tableName": "connection_events",
@@ -149,7 +149,7 @@
       },
       {
         "tableName": "anomaly_alerts",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `timestamp` INTEGER NOT NULL, `type` TEXT NOT NULL, `severity` TEXT NOT NULL, `message` TEXT NOT NULL, `packageName` TEXT NOT NULL, `connectionId` TEXT, `isRead` INTEGER NOT NULL)",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `timestamp` INTEGER NOT NULL, `type` TEXT NOT NULL, `severity` TEXT NOT NULL, `message` TEXT NOT NULL, `packageName` TEXT NOT NULL, `connectionId` TEXT, `target` TEXT, `isRead` INTEGER NOT NULL)",
         "fields": [
           {
             "fieldPath": "id",
@@ -193,6 +193,11 @@
             "affinity": "TEXT"
           },
           {
+            "fieldPath": "target",
+            "columnName": "target",
+            "affinity": "TEXT"
+          },
+          {
             "fieldPath": "isRead",
             "columnName": "isRead",
             "affinity": "INTEGER",
@@ -204,12 +209,25 @@
           "columnNames": [
             "id"
           ]
-        }
+        },
+        "indices": [
+          {
+            "name": "index_anomaly_alerts_type_packageName_target",
+            "unique": true,
+            "columnNames": [
+              "type",
+              "packageName",
+              "target"
+            ],
+            "orders": [],
+            "createSql": "CREATE UNIQUE INDEX IF NOT EXISTS `index_anomaly_alerts_type_packageName_target` ON `${TABLE_NAME}` (`type`, `packageName`, `target`)"
+          }
+        ]
       }
     ],
     "setupQueries": [
       "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
-      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '536e7bb5fe488b6388ef7fb3baf9d651')"
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '8f78b6d94dff4d68237743f1d0e1fa01')"
     ]
   }
 }
