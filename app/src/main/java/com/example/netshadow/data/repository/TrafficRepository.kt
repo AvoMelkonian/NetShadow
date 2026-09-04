@@ -15,6 +15,7 @@ import com.example.netshadow.data.model.Protocol
 import com.example.netshadow.intelligence.RuleEvaluator
 import com.example.netshadow.intelligence.dns.DefaultDnsResolver
 import com.example.netshadow.intelligence.dns.DnsResolver
+import com.example.netshadow.intelligence.enrichment.EnrichmentManager
 import com.example.netshadow.intelligence.trackers.TrackerMatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
@@ -32,63 +33,28 @@ class TrafficRepository(
     private val trackerMatcher: TrackerMatcher? = null,
     private val dnsResolver: DnsResolver = DefaultDnsResolver
 ) {
-    private val ruleEvaluator = RuleEvaluator(geoIpService, trackerMatcher)
+    private val enrichmentManager = EnrichmentManager(
+        connectionEventDao,
+        appBaselineDao,
+        anomalyAlertDao,
+        geoIpService,
+        trackerMatcher,
+        dnsResolver
+    )
 
     suspend fun logConnection(event: ConnectionEvent) = withContext(Dispatchers.IO) {
-        var entity = event.toEntity()
-        
-        // Async PTR lookup if domain is missing
-        if (entity.resolvedDomain == null) {
-            val hostname = dnsResolver.reverseLookup(entity.remoteAddress)
-            if (hostname != null) {
-                entity = entity.copy(resolvedDomain = hostname)
-            }
-        }
-        
+        val entity = event.toEntity()
         connectionEventDao.upsert(entity)
-        evaluateRules(entity)
+        enrichmentManager.enrichAsync(entity)
     }
 
     suspend fun logConnections(events: List<ConnectionEvent>) = withContext(Dispatchers.IO) {
         if (events.isEmpty()) return@withContext
         
-        val entities = events.map { event ->
-            var entity = event.toEntity()
-            if (entity.resolvedDomain == null) {
-                val hostname = dnsResolver.reverseLookup(entity.remoteAddress)
-                if (hostname != null) {
-                    entity = entity.copy(resolvedDomain = hostname)
-                }
-            }
-            entity
-        }
-
+        val entities = events.map { it.toEntity() }
         connectionEventDao.upsertAll(entities)
-        
-        entities.forEach { evaluateRules(it) }
-    }
 
-    private suspend fun evaluateRules(event: ConnectionEventEntity) {
-        val baseline = appBaselineDao.getBaselineForApp(event.packageName)
-        // For stats, we might need a cache or a window. 
-        // For simplicity now, we'll fetch stats from the last 7 days.
-        val since = System.currentTimeMillis() - 7 * 24 * 3600000L
-        val stats = getHourlyStats(event.packageName, since).first()
-        
-        val results = ruleEvaluator.evaluateAll(event, baseline, stats)
-        
-        results.forEach { result ->
-            val alert = AnomalyAlertEntity(
-                timestamp = System.currentTimeMillis(),
-                type = result.type,
-                severity = result.severity,
-                message = result.message,
-                packageName = event.packageName,
-                connectionId = event.connectionId,
-                target = result.target
-            )
-            anomalyAlertDao.insertIgnore(alert)
-        }
+        entities.forEach { enrichmentManager.enrichAsync(it) }
     }
 
     suspend fun computeBaseline(packageName: String) = withContext(Dispatchers.IO) {

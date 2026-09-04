@@ -18,6 +18,10 @@ data class ConnectionEventEntity(
     val uid: Int,
     val timestamp: Long,
     val resolvedDomain: String? = null,
+    val remoteCountry: String? = null,
+    val remoteCity: String? = null,
+    val remoteAsn: Int? = null,
+    val remoteAsnOrg: String? = null,
     val bytesSent: Long,
     val bytesReceived: Long
 )

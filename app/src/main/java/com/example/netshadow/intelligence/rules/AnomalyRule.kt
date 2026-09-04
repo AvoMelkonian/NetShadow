@@ -118,9 +118,9 @@ class NewCountryRule(private val geoIpService: GeoIpService?) : AnomalyRule {
         baseline: AppBaselineEntity?,
         stats: TrafficStats?
     ): RuleResult? {
-        if (baseline == null || geoIpService == null) return null
+        if (baseline == null) return null
         
-        val countryCode = geoIpService.getCountryCode(event.remoteAddress) ?: return null
+        val countryCode = event.remoteCountry ?: geoIpService?.getCountryCode(event.remoteAddress) ?: return null
         
         return if (!baseline.allowedCountries.contains(countryCode)) {
             RuleResult(

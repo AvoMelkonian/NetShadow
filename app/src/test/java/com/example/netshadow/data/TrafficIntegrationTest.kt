@@ -146,12 +146,12 @@ class TrafficIntegrationTest {
         }
 
         val stats = repository.getHourlyStats(packageName, now - 7 * 24 * hourMs).first()
-        
+
         // Expected mean: (100+200+300+400+500)/5 = 300
         // Expected variance: ((100-300)^2 + (200-300)^2 + (300-300)^2 + (400-300)^2 + (500-300)^2) / 5
         // = (40000 + 10000 + 0 + 10000 + 40000) / 5 = 100000 / 5 = 20000
         // Expected stdDev: sqrt(20000) ≈ 141.42
-        
+
         assertEquals(300.0, stats.mean, 0.001)
         assertEquals(sqrt(20000.0), stats.stdDev, 0.001)
 
@@ -253,7 +253,7 @@ class TrafficIntegrationTest {
     fun testFeedbackLoop() = runBlocking {
         val packageName = "com.test.feedback"
         val targetIp = "1.2.3.4"
-        
+
         // 1. Initial Baseline (empty)
         db.appBaselineDao().insertOrUpdate(
             AppBaselineEntity(
@@ -289,7 +289,7 @@ class TrafficIntegrationTest {
 
         // 3. Mark as Expected
         repository.markAsExpected(packageName, targetIp, ExpectedType.IP)
-        
+
         // Verify baseline updated
         val baseline = db.appBaselineDao().getBaselineForApp(packageName)
         assertTrue(baseline?.allowedIps?.contains(targetIp) == true)
