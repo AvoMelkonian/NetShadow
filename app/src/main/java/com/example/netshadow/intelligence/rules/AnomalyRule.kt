@@ -6,6 +6,7 @@ import com.example.netshadow.data.model.AlertType
 import com.example.netshadow.data.model.Severity
 import com.example.netshadow.data.repository.TrafficStats
 import com.example.netshadow.intelligence.geoip.GeoIpService
+import com.example.netshadow.intelligence.trackers.TrackerMatcher
 import java.util.Calendar
 
 data class RuleResult(
@@ -41,7 +42,7 @@ class ByteSpikeRule : AnomalyRule {
                 type = AlertType.HIGH_TRAFFIC_VOLUME,
                 severity = Severity.HIGH,
                 message = "Traffic spike detected: ${event.bytesSent} bytes (Threshold: ${threshold.toLong()})",
-                target = "spike" // Generic target for volume anomalies
+                target = "spike"
             )
         } else null
     }
@@ -59,11 +60,10 @@ class UnusualHourRule : AnomalyRule {
         calendar.timeInMillis = event.timestamp
         val hour = calendar.get(Calendar.HOUR_OF_DAY)
         
-        // If this hour has never seen activity in the baseline window
         return if (baseline.typicalActiveHours.getOrElse(hour) { 0 } == 0) {
             RuleResult(
                 isAnomaly = true,
-                type = AlertType.UNUSUAL_PORT, // Reusing type or could add UNUSUAL_TIME
+                type = AlertType.UNUSUAL_PORT,
                 severity = Severity.MEDIUM,
                 message = "Activity at unusual hour: $hour:00",
                 target = hour.toString()
@@ -103,7 +103,7 @@ class NewIpRule : AnomalyRule {
         return if (!baseline.allowedIps.contains(event.remoteAddress)) {
             RuleResult(
                 isAnomaly = true,
-                type = AlertType.UNAUTHORIZED_DOMAIN, // Reusing for new destination
+                type = AlertType.UNAUTHORIZED_DOMAIN,
                 severity = Severity.LOW,
                 message = "Connection to new IP address: ${event.remoteAddress}",
                 target = event.remoteAddress
@@ -125,10 +125,30 @@ class NewCountryRule(private val geoIpService: GeoIpService?) : AnomalyRule {
         return if (!baseline.allowedCountries.contains(countryCode)) {
             RuleResult(
                 isAnomaly = true,
-                type = AlertType.UNAUTHORIZED_DOMAIN, // Could add NEW_COUNTRY
+                type = AlertType.UNAUTHORIZED_DOMAIN,
                 severity = Severity.HIGH,
                 message = "Connection to new country: $countryCode",
                 target = countryCode
+            )
+        } else null
+    }
+}
+
+class TrackerRule(private val trackerMatcher: TrackerMatcher?) : AnomalyRule {
+    override fun evaluate(
+        event: ConnectionEventEntity,
+        baseline: AppBaselineEntity?,
+        stats: TrafficStats?
+    ): RuleResult? {
+        if (trackerMatcher == null || event.resolvedDomain == null) return null
+        
+        return if (trackerMatcher.isTracker(event.resolvedDomain)) {
+            RuleResult(
+                isAnomaly = true,
+                type = AlertType.UNAUTHORIZED_DOMAIN, // Could add a specific TRACKER type
+                severity = Severity.MEDIUM,
+                message = "Connection to known tracker: ${event.resolvedDomain}",
+                target = event.resolvedDomain
             )
         } else null
     }

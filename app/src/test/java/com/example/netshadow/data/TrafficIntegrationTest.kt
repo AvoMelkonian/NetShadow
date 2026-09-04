@@ -13,6 +13,7 @@ import com.example.netshadow.data.model.Direction
 import com.example.netshadow.data.model.Protocol
 import com.example.netshadow.data.repository.ExpectedType
 import com.example.netshadow.data.repository.TrafficRepository
+import com.example.netshadow.intelligence.dns.DnsResolver
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.first
@@ -45,7 +46,11 @@ class TrafficIntegrationTest {
             db.connectionEventDao(),
             db.appBaselineDao(),
             db.anomalyAlertDao(),
-            null
+            null,
+            null,
+            object : DnsResolver {
+                override suspend fun reverseLookup(ipAddress: String): String? = null
+            }
         )
     }
 

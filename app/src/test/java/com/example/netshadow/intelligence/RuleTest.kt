@@ -1,5 +1,6 @@
 package com.example.netshadow.intelligence
 
+import android.content.Context
 import androidx.test.core.app.ApplicationProvider
 import com.example.netshadow.data.entity.AppBaselineEntity
 import com.example.netshadow.data.entity.ConnectionEventEntity
@@ -7,6 +8,7 @@ import com.example.netshadow.data.model.Direction
 import com.example.netshadow.data.model.Protocol
 import com.example.netshadow.data.repository.TrafficStats
 import com.example.netshadow.intelligence.geoip.GeoIpService
+import com.example.netshadow.intelligence.trackers.TrackerMatcher
 import com.example.netshadow.intelligence.rules.*
 import org.junit.Assert.*
 import org.junit.Test
@@ -147,5 +149,25 @@ class RuleTest {
         assertNotNull(result)
         assertTrue(result!!.isAnomaly)
         assertEquals("AU", result.target)
+    }
+
+    @Test
+    fun testTrackerRule() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val matcher = TrackerMatcher(context)
+        val rule = TrackerRule(matcher)
+        
+        // "doubleclick.net" is in our trackers.json
+        val result = rule.evaluate(createBaseEvent(resolvedDomain = "ads.doubleclick.net"), null, null)
+        assertNotNull(result)
+        assertTrue(result!!.isAnomaly)
+        
+        // Test subdomain matching specifically
+        assertTrue(matcher.isTracker("sub.ads.doubleclick.net"))
+        assertTrue(matcher.isTracker("doubleclick.net"))
+        assertFalse(matcher.isTracker("not-doubleclick.net"))
+        
+        // Non-tracker
+        assertNull(rule.evaluate(createBaseEvent(resolvedDomain = "example.com"), null, null))
     }
 }

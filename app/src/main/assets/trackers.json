@@ -1,0 +1,16 @@
+{
+  "trackers": {
+    "google_ads": {
+      "name": "Google Ads",
+      "network_filters": "doubleclick.net|googleadservices.com"
+    },
+    "facebook_tracker": {
+      "name": "Facebook Tracker",
+      "network_filters": "facebook.com|fbcdn.net"
+    },
+    "adjust": {
+      "name": "Adjust",
+      "network_filters": "adjust.com"
+    }
+  }
+}

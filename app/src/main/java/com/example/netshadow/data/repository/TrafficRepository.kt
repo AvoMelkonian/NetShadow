@@ -13,6 +13,9 @@ import com.example.netshadow.data.entity.ConnectionEventEntity
 import com.example.netshadow.data.model.Direction
 import com.example.netshadow.data.model.Protocol
 import com.example.netshadow.intelligence.RuleEvaluator
+import com.example.netshadow.intelligence.dns.DefaultDnsResolver
+import com.example.netshadow.intelligence.dns.DnsResolver
+import com.example.netshadow.intelligence.trackers.TrackerMatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
@@ -25,19 +28,41 @@ class TrafficRepository(
     private val connectionEventDao: ConnectionEventDao,
     private val appBaselineDao: AppBaselineDao,
     private val anomalyAlertDao: AnomalyAlertDao,
-    private val geoIpService: com.example.netshadow.intelligence.geoip.GeoIpService? = null
+    private val geoIpService: com.example.netshadow.intelligence.geoip.GeoIpService? = null,
+    private val trackerMatcher: TrackerMatcher? = null,
+    private val dnsResolver: DnsResolver = DefaultDnsResolver
 ) {
-    private val ruleEvaluator = RuleEvaluator(geoIpService)
+    private val ruleEvaluator = RuleEvaluator(geoIpService, trackerMatcher)
 
     suspend fun logConnection(event: ConnectionEvent) = withContext(Dispatchers.IO) {
-        val entity = event.toEntity()
+        var entity = event.toEntity()
+        
+        // Async PTR lookup if domain is missing
+        if (entity.resolvedDomain == null) {
+            val hostname = dnsResolver.reverseLookup(entity.remoteAddress)
+            if (hostname != null) {
+                entity = entity.copy(resolvedDomain = hostname)
+            }
+        }
+        
         connectionEventDao.upsert(entity)
         evaluateRules(entity)
     }
 
     suspend fun logConnections(events: List<ConnectionEvent>) = withContext(Dispatchers.IO) {
         if (events.isEmpty()) return@withContext
-        val entities = events.map { it.toEntity() }
+        
+        val entities = events.map { event ->
+            var entity = event.toEntity()
+            if (entity.resolvedDomain == null) {
+                val hostname = dnsResolver.reverseLookup(entity.remoteAddress)
+                if (hostname != null) {
+                    entity = entity.copy(resolvedDomain = hostname)
+                }
+            }
+            entity
+        }
+
         connectionEventDao.upsertAll(entities)
         
         entities.forEach { evaluateRules(it) }
