@@ -7,6 +7,9 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.example.netshadow.capture.model.ConnectionEvent
 import com.example.netshadow.capture.model.NetworkProtocol
 import com.example.netshadow.capture.model.TrafficDirection
+import com.example.netshadow.data.entity.ConnectionEventEntity
+import com.example.netshadow.data.model.Direction
+import com.example.netshadow.data.model.Protocol
 import com.example.netshadow.data.repository.TrafficRepository
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -24,6 +27,7 @@ import org.robolectric.annotation.Config
 import java.io.IOException
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicInteger
+import kotlin.math.sqrt
 
 @RunWith(AndroidJUnit4::class)
 @Config(sdk = [34])
@@ -99,5 +103,49 @@ class TrafficIntegrationTest {
 
         collectionJob.cancel()
         flushJob.cancel()
+    }
+
+    @Test
+    fun testRollingWindowAggregation() = runBlocking {
+        val packageName = "com.test.app"
+        val now = System.currentTimeMillis()
+        val hourMs = 3600000L
+        
+        // Seed hourly data: 100, 200, 300, 400, 500
+        val data = listOf(100L, 200L, 300L, 400L, 500L)
+        data.forEachIndexed { index, bytes ->
+            val timestamp = now - (index * hourMs)
+            db.connectionEventDao().upsert(
+                ConnectionEventEntity(
+                    connectionId = "conn_$index",
+                    protocol = Protocol.TCP,
+                    direction = Direction.Outbound,
+                    localAddress = "10.0.0.2",
+                    localPort = 1000 + index,
+                    remoteAddress = "8.8.8.$index",
+                    remotePort = 443,
+                    packageName = packageName,
+                    uid = 1000,
+                    timestamp = timestamp,
+                    bytesSent = bytes,
+                    bytesReceived = 0
+                )
+            )
+        }
+
+        val stats = repository.getHourlyStats(packageName, now - 7 * 24 * hourMs).first()
+        
+        // Expected mean: (100+200+300+400+500)/5 = 300
+        // Expected variance: ((100-300)^2 + (200-300)^2 + (300-300)^2 + (400-300)^2 + (500-300)^2) / 5
+        // = (40000 + 10000 + 0 + 10000 + 40000) / 5 = 100000 / 5 = 20000
+        // Expected stdDev: sqrt(20000) ≈ 141.42
+        
+        assertEquals(300.0, stats.mean, 0.001)
+        assertEquals(sqrt(20000.0), stats.stdDev, 0.001)
+
+        val destinations = repository.getKnownDestinations(packageName, now - 7 * 24 * hourMs).first()
+        assertEquals(5, destinations.size)
+        assertTrue(destinations.contains("8.8.8.0"))
+        assertTrue(destinations.contains("8.8.8.4"))
     }
 }

@@ -24,6 +24,12 @@ interface ConnectionEventDao {
     @Query("SELECT packageName, SUM(bytesSent) as totalSent, SUM(bytesReceived) as totalReceived FROM connection_events GROUP BY packageName")
     fun getAppTrafficAggregation(): Flow<List<AppTrafficStats>>
 
+    @Query("SELECT DISTINCT remoteAddress FROM connection_events WHERE packageName = :packageName AND timestamp >= :since")
+    fun getKnownDestinations(packageName: String, since: Long): Flow<List<String>>
+
+    @Query("SELECT (timestamp / 3600000) * 3600000 as hourTimestamp, SUM(bytesSent) as totalBytesSent FROM connection_events WHERE packageName = :packageName AND timestamp >= :since GROUP BY hourTimestamp")
+    fun getHourlyTrafficStats(packageName: String, since: Long): Flow<List<HourlyTraffic>>
+
     @Query("DELETE FROM connection_events WHERE timestamp < :threshold")
     suspend fun deleteOldEvents(threshold: Long)
 }
@@ -32,4 +38,9 @@ data class AppTrafficStats(
     val packageName: String,
     val totalSent: Long,
     val totalReceived: Long
+)
+
+data class HourlyTraffic(
+    val hourTimestamp: Long,
+    val totalBytesSent: Long
 )

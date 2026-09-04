@@ -4,11 +4,15 @@ import com.example.netshadow.capture.model.ConnectionEvent
 import com.example.netshadow.capture.model.NetworkProtocol
 import com.example.netshadow.capture.model.TrafficDirection
 import com.example.netshadow.data.dao.ConnectionEventDao
+import com.example.netshadow.data.dao.HourlyTraffic
 import com.example.netshadow.data.entity.ConnectionEventEntity
 import com.example.netshadow.data.model.Direction
 import com.example.netshadow.data.model.Protocol
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.withContext
+import kotlin.math.sqrt
 
 class TrafficRepository(private val connectionEventDao: ConnectionEventDao) {
 
@@ -19,6 +23,21 @@ class TrafficRepository(private val connectionEventDao: ConnectionEventDao) {
     suspend fun logConnections(events: List<ConnectionEvent>) = withContext(Dispatchers.IO) {
         if (events.isEmpty()) return@withContext
         connectionEventDao.upsertAll(events.map { it.toEntity() })
+    }
+
+    fun getKnownDestinations(packageName: String, since: Long): Flow<List<String>> {
+        return connectionEventDao.getKnownDestinations(packageName, since)
+    }
+
+    fun getHourlyStats(packageName: String, since: Long): Flow<TrafficStats> {
+        return connectionEventDao.getHourlyTrafficStats(packageName, since).map { hourlyList ->
+            if (hourlyList.isEmpty()) return@map TrafficStats(0.0, 0.0)
+
+            val values = hourlyList.map { it.totalBytesSent.toDouble() }
+            val mean = values.average()
+            val variance = values.map { (it - mean) * (it - mean) }.average()
+            TrafficStats(mean, sqrt(variance))
+        }
     }
 
     private fun ConnectionEvent.toEntity(): ConnectionEventEntity {
@@ -45,3 +64,8 @@ class TrafficRepository(private val connectionEventDao: ConnectionEventDao) {
         )
     }
 }
+
+data class TrafficStats(
+    val mean: Double,
+    val stdDev: Double
+)
