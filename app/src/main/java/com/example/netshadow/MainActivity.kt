@@ -15,18 +15,15 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.layout.*
-import androidx.compose.material3.*
 import androidx.compose.runtime.*
-import androidx.compose.ui.Alignment
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.netshadow.capture.vpn.NetShadowVpnService
 import com.example.netshadow.data.model.AppSummary
 import com.example.netshadow.ui.DashboardViewModel
 import com.example.netshadow.ui.theme.NetShadowTheme
+
+import com.example.netshadow.ui.navigation.MainNavigationContainer
 
 class MainActivity : ComponentActivity() {
 
@@ -64,25 +61,19 @@ class MainActivity : ComponentActivity() {
         setContent {
             NetShadowTheme {
                 val viewModel: DashboardViewModel = viewModel(factory = viewModelFactory)
-                val summaries by viewModel.appSummaries.collectAsState()
-                val exportStatus by viewModel.exportStatus.collectAsState()
 
-                Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
-                    MainScreen(
-                        modifier = Modifier.padding(innerPadding),
-                        showDenial = showDenialUI.value,
-                        summaries = summaries,
-                        exportStatus = exportStatus,
-                        onStartCapture = { prepareVpn() },
-                        onRetry = {
-                            showDenialUI.value = false
-                            prepareVpn()
-                        },
-                        onExport = {
-                            getExternalFilesDir(null)?.let { viewModel.exportLog(it) }
-                        }
-                    )
-                }
+                MainNavigationContainer(
+                    viewModel = viewModel,
+                    showDenial = showDenialUI.value,
+                    onStartCapture = { prepareVpn() },
+                    onRetry = {
+                        showDenialUI.value = false
+                        prepareVpn()
+                    },
+                    onExport = {
+                        getExternalFilesDir(null)?.let { viewModel.exportLog(it) }
+                    }
+                )
             }
         }
     }
@@ -132,65 +123,5 @@ class MainActivity : ComponentActivity() {
         val intent = Intent(this, NetShadowVpnService::class.java)
         startForegroundService(intent)
         Toast.makeText(this, "VPN Service Started", Toast.LENGTH_SHORT).show()
-    }
-}
-
-@Composable
-fun MainScreen(
-    modifier: Modifier = Modifier,
-    showDenial: Boolean,
-    summaries: List<AppSummary>,
-    exportStatus: String?,
-    onStartCapture: () -> Unit,
-    onRetry: () -> Unit,
-    onExport: () -> Unit
-) {
-    Column(
-        modifier = modifier.fillMaxSize().padding(16.dp),
-        verticalArrangement = Arrangement.Top,
-        horizontalAlignment = Alignment.CenterHorizontally
-    ) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceEvenly
-        ) {
-            if (showDenial) {
-                Button(onClick = onRetry) {
-                    Text("Retry VPN")
-                }
-            } else {
-                Button(onClick = onStartCapture) {
-                    Text("Start Capture")
-                }
-            }
-            
-            Button(onClick = onExport) {
-                Text("Export CSV")
-            }
-        }
-
-        exportStatus?.let {
-            Text(
-                text = it,
-                style = MaterialTheme.typography.bodySmall,
-                modifier = Modifier.padding(top = 8.dp)
-            )
-        }
-
-        Spacer(modifier = Modifier.height(16.dp))
-
-        Text(text = "App Traffic Summaries", style = MaterialTheme.typography.headlineSmall)
-        
-        summaries.forEach { summary ->
-            Card(
-                modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)
-            ) {
-                Column(modifier = Modifier.padding(8.dp)) {
-                    Text(text = summary.packageName, style = MaterialTheme.typography.bodyLarge)
-                    Text(text = "Sent: ${summary.totalBytesSent} bytes | Received: ${summary.totalBytesReceived} bytes")
-                    Text(text = "Alerts: ${summary.alertCount}", color = if (summary.alertCount > 0) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary)
-                }
-            }
-        }
     }
 }
