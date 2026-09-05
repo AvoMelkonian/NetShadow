@@ -65,16 +65,21 @@ class MainActivity : ComponentActivity() {
             NetShadowTheme {
                 val viewModel: DashboardViewModel = viewModel(factory = viewModelFactory)
                 val summaries by viewModel.appSummaries.collectAsState()
+                val exportStatus by viewModel.exportStatus.collectAsState()
 
                 Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
                     MainScreen(
                         modifier = Modifier.padding(innerPadding),
                         showDenial = showDenialUI.value,
                         summaries = summaries,
+                        exportStatus = exportStatus,
                         onStartCapture = { prepareVpn() },
                         onRetry = {
                             showDenialUI.value = false
                             prepareVpn()
+                        },
+                        onExport = {
+                            getExternalFilesDir(null)?.let { viewModel.exportLog(it) }
                         }
                     )
                 }
@@ -135,27 +140,41 @@ fun MainScreen(
     modifier: Modifier = Modifier,
     showDenial: Boolean,
     summaries: List<AppSummary>,
+    exportStatus: String?,
     onStartCapture: () -> Unit,
-    onRetry: () -> Unit
+    onRetry: () -> Unit,
+    onExport: () -> Unit
 ) {
     Column(
         modifier = modifier.fillMaxSize().padding(16.dp),
         verticalArrangement = Arrangement.Top,
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        if (showDenial) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceEvenly
+        ) {
+            if (showDenial) {
+                Button(onClick = onRetry) {
+                    Text("Retry VPN")
+                }
+            } else {
+                Button(onClick = onStartCapture) {
+                    Text("Start Capture")
+                }
+            }
+            
+            Button(onClick = onExport) {
+                Text("Export CSV")
+            }
+        }
+
+        exportStatus?.let {
             Text(
-                text = "VPN permission is required to capture network traffic.",
-                color = MaterialTheme.colorScheme.error,
-                modifier = Modifier.padding(16.dp)
+                text = it,
+                style = MaterialTheme.typography.bodySmall,
+                modifier = Modifier.padding(top = 8.dp)
             )
-            Button(onClick = onRetry) {
-                Text("Retry")
-            }
-        } else {
-            Button(onClick = onStartCapture) {
-                Text("Start Capture")
-            }
         }
 
         Spacer(modifier = Modifier.height(16.dp))

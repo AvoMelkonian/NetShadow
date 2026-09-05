@@ -21,7 +21,8 @@ import com.example.netshadow.intelligence.trackers.TrackerMatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.withContext
-import java.util.Calendar
+import java.text.SimpleDateFormat
+import java.util.*
 import kotlin.math.sqrt
 
 class TrafficRepository(
@@ -154,6 +155,46 @@ class TrafficRepository(
         }
         
         appBaselineDao.insertOrUpdate(updatedBaseline)
+    }
+
+    suspend fun exportTrafficLogAsCsv(): String = withContext(Dispatchers.IO) {
+        val events = connectionEventDao.getAllEventsList()
+        val dateFormat = SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSS", Locale.US)
+        
+        val header = "Timestamp,PackageName,UID,Protocol,Direction,LocalAddress,LocalPort,RemoteAddress,RemotePort,Domain,Country,ASN,ASN_Org,BytesSent,BytesReceived\n"
+        
+        val body = events.joinToString("\n") { e ->
+            val timestamp = dateFormat.format(Date(e.timestamp))
+            val protocolStr = when (val p = e.protocol) {
+                is Protocol.TCP -> "TCP"
+                is Protocol.UDP -> "UDP"
+                is Protocol.Unknown -> "Unknown(${p.protocolNumber})"
+            }
+            val directionStr = when (e.direction) {
+                is Direction.Inbound -> "Inbound"
+                is Direction.Outbound -> "Outbound"
+            }
+            
+            listOf(
+                timestamp,
+                e.packageName,
+                e.uid.toString(),
+                protocolStr,
+                directionStr,
+                e.localAddress,
+                e.localPort.toString(),
+                e.remoteAddress,
+                e.remotePort.toString(),
+                e.resolvedDomain ?: "",
+                e.remoteCountry ?: "",
+                e.remoteAsn?.toString() ?: "",
+                "\"${e.remoteAsnOrg ?: ""}\"", // Quote ASN Org as it may contain commas
+                e.bytesSent.toString(),
+                e.bytesReceived.toString()
+            ).joinToString(",")
+        }
+        
+        header + body
     }
 
     fun getKnownDestinations(packageName: String, since: Long): Flow<List<String>> {

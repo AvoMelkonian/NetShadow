@@ -33,6 +33,9 @@ interface ConnectionEventDao {
     @Query("SELECT (timestamp / 3600000) * 3600000 as hourTimestamp, SUM(bytesSent) as totalBytesSent FROM connection_events WHERE packageName = :packageName AND timestamp >= :since GROUP BY hourTimestamp")
     fun getHourlyTrafficStats(packageName: String, since: Long): Flow<List<HourlyTraffic>>
 
+    @Query("SELECT * FROM connection_events ORDER BY timestamp DESC")
+    suspend fun getAllEventsList(): List<ConnectionEventEntity>
+
     @Query("DELETE FROM connection_events WHERE timestamp < :threshold")
     suspend fun deleteOldEvents(threshold: Long)
 
