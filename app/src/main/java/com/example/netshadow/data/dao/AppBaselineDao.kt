@@ -12,6 +12,9 @@ interface AppBaselineDao {
     @Query("SELECT * FROM app_baselines WHERE packageName = :packageName")
     suspend fun getBaselineForApp(packageName: String): AppBaselineEntity?
 
+    @Query("SELECT * FROM app_baselines WHERE packageName = :packageName")
+    fun getBaselineFlow(packageName: String): Flow<AppBaselineEntity?>
+
     @Query("SELECT * FROM app_baselines")
     fun getAllBaselines(): Flow<List<AppBaselineEntity>>
 

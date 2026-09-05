@@ -21,6 +21,9 @@ interface AnomalyAlertDao {
     @Query("UPDATE anomaly_alerts SET isRead = 1")
     suspend fun markAllAsRead()
 
+    @Query("SELECT * FROM anomaly_alerts WHERE packageName = :packageName ORDER BY timestamp DESC")
+    fun getAlertsForApp(packageName: String): Flow<List<AnomalyAlertEntity>>
+
     @Query("DELETE FROM anomaly_alerts WHERE timestamp < :threshold")
     suspend fun deleteOldAlerts(threshold: Long)
 }

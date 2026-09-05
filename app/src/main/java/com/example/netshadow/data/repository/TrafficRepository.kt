@@ -10,6 +10,7 @@ import com.example.netshadow.data.dao.HourlyTraffic
 import com.example.netshadow.data.entity.AnomalyAlertEntity
 import com.example.netshadow.data.entity.AppBaselineEntity
 import com.example.netshadow.data.entity.ConnectionEventEntity
+import com.example.netshadow.data.model.AppDetail
 import com.example.netshadow.data.model.Direction
 import com.example.netshadow.data.model.Protocol
 import com.example.netshadow.intelligence.RuleEvaluator
@@ -18,9 +19,7 @@ import com.example.netshadow.intelligence.dns.DnsResolver
 import com.example.netshadow.intelligence.enrichment.EnrichmentManager
 import com.example.netshadow.intelligence.trackers.TrackerMatcher
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.withContext
 import java.util.Calendar
 import kotlin.math.sqrt
@@ -107,6 +106,33 @@ class TrafficRepository(
 
     fun getAppSummaries(): Flow<List<com.example.netshadow.data.model.AppSummary>> {
         return connectionEventDao.getAppSummaries()
+    }
+
+    fun getAlerts(): Flow<List<AnomalyAlertEntity>> {
+        return anomalyAlertDao.getAllAlerts()
+    }
+
+    fun getAppDetail(packageName: String): Flow<AppDetail> {
+        return combine(
+            appBaselineDao.getBaselineFlow(packageName),
+            connectionEventDao.getEventsByApp(packageName),
+            anomalyAlertDao.getAlertsForApp(packageName)
+        ) { baseline, events, alerts ->
+            val serverCount = events.map { it.remoteAddress }.distinct().size
+            // Use GeoIP to count countries from current events if baseline is thin
+            val countries = events.mapNotNull { it.remoteCountry }.distinct()
+            val countryCount = countries.size
+            
+            val summary = "contacts $serverCount servers in $countryCount countries"
+            
+            AppDetail(
+                packageName = packageName,
+                baseline = baseline,
+                recentEvents = events.take(50),
+                alerts = alerts,
+                summaryString = summary
+            )
+        }
     }
 
     suspend fun markAsExpected(packageName: String, target: String, type: ExpectedType) = withContext(Dispatchers.IO) {
