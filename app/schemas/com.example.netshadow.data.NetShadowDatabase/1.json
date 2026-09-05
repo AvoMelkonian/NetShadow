@@ -2,11 +2,11 @@
   "formatVersion": 1,
   "database": {
     "version": 1,
-    "identityHash": "ba442b6d41564a313916a6598136d695",
+    "identityHash": "41979ec1c3c26386164b18c415c3457d",
     "entities": [
       {
         "tableName": "connection_events",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`connectionId` TEXT NOT NULL, `protocol` INTEGER NOT NULL, `direction` TEXT NOT NULL, `localAddress` TEXT NOT NULL, `localPort` INTEGER NOT NULL, `remoteAddress` TEXT NOT NULL, `remotePort` INTEGER NOT NULL, `packageName` TEXT NOT NULL, `uid` INTEGER NOT NULL, `timestamp` INTEGER NOT NULL, `resolvedDomain` TEXT, `countryCode` TEXT, `asn` INTEGER, `asOrg` TEXT, `bytesSent` INTEGER NOT NULL, `bytesReceived` INTEGER NOT NULL, PRIMARY KEY(`connectionId`))",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`connectionId` TEXT NOT NULL, `protocol` INTEGER NOT NULL, `direction` TEXT NOT NULL, `localAddress` TEXT NOT NULL, `localPort` INTEGER NOT NULL, `remoteAddress` TEXT NOT NULL, `remotePort` INTEGER NOT NULL, `packageName` TEXT NOT NULL, `uid` INTEGER NOT NULL, `timestamp` INTEGER NOT NULL, `resolvedDomain` TEXT, `remoteCountry` TEXT, `remoteCity` TEXT, `remoteAsn` INTEGER, `remoteAsnOrg` TEXT, `bytesSent` INTEGER NOT NULL, `bytesReceived` INTEGER NOT NULL, PRIMARY KEY(`connectionId`))",
         "fields": [
           {
             "fieldPath": "connectionId",
@@ -74,18 +74,23 @@
             "affinity": "TEXT"
           },
           {
-            "fieldPath": "countryCode",
-            "columnName": "countryCode",
+            "fieldPath": "remoteCountry",
+            "columnName": "remoteCountry",
             "affinity": "TEXT"
           },
           {
-            "fieldPath": "asn",
-            "columnName": "asn",
+            "fieldPath": "remoteCity",
+            "columnName": "remoteCity",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "remoteAsn",
+            "columnName": "remoteAsn",
             "affinity": "INTEGER"
           },
           {
-            "fieldPath": "asOrg",
-            "columnName": "asOrg",
+            "fieldPath": "remoteAsnOrg",
+            "columnName": "remoteAsnOrg",
             "affinity": "TEXT"
           },
           {
@@ -248,7 +253,7 @@
     ],
     "setupQueries": [
       "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
-      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, 'ba442b6d41564a313916a6598136d695')"
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '41979ec1c3c26386164b18c415c3457d')"
     ]
   }
 }

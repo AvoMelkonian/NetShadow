@@ -105,6 +105,10 @@ class TrafficRepository(
         apps.forEach { computeBaseline(it) }
     }
 
+    fun getAppSummaries(): Flow<List<com.example.netshadow.data.model.AppSummary>> {
+        return connectionEventDao.getAppSummaries()
+    }
+
     suspend fun markAsExpected(packageName: String, target: String, type: ExpectedType) = withContext(Dispatchers.IO) {
         val existing = appBaselineDao.getBaselineForApp(packageName) ?: return@withContext
         

@@ -35,6 +35,19 @@ interface ConnectionEventDao {
 
     @Query("DELETE FROM connection_events WHERE timestamp < :threshold")
     suspend fun deleteOldEvents(threshold: Long)
+
+    @Query("""
+        SELECT 
+            ce.packageName,
+            (SELECT packageName FROM connection_events WHERE packageName = ce.packageName LIMIT 1) as appName,
+            0 as liveConnectionCount,
+            SUM(ce.bytesSent) as totalBytesSent,
+            SUM(ce.bytesReceived) as totalBytesReceived,
+            (SELECT COUNT(*) FROM anomaly_alerts aa WHERE aa.packageName = ce.packageName) as alertCount
+        FROM connection_events ce
+        GROUP BY ce.packageName
+    """)
+    fun getAppSummaries(): Flow<List<com.example.netshadow.data.model.AppSummary>>
 }
 
 data class AppTrafficStats(

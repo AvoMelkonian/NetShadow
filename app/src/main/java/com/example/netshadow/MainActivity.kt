@@ -22,7 +22,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
+import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.netshadow.capture.vpn.NetShadowVpnService
+import com.example.netshadow.data.model.AppSummary
+import com.example.netshadow.ui.DashboardViewModel
 import com.example.netshadow.ui.theme.NetShadowTheme
 
 class MainActivity : ComponentActivity() {
@@ -54,12 +57,20 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+        
+        val repository = (application as NetShadowApp).trafficRepository
+        val viewModelFactory = DashboardViewModel.Factory(repository)
+
         setContent {
             NetShadowTheme {
+                val viewModel: DashboardViewModel = viewModel(factory = viewModelFactory)
+                val summaries by viewModel.appSummaries.collectAsState()
+
                 Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
                     MainScreen(
                         modifier = Modifier.padding(innerPadding),
                         showDenial = showDenialUI.value,
+                        summaries = summaries,
                         onStartCapture = { prepareVpn() },
                         onRetry = {
                             showDenialUI.value = false
@@ -123,12 +134,13 @@ class MainActivity : ComponentActivity() {
 fun MainScreen(
     modifier: Modifier = Modifier,
     showDenial: Boolean,
+    summaries: List<AppSummary>,
     onStartCapture: () -> Unit,
     onRetry: () -> Unit
 ) {
     Column(
-        modifier = modifier.fillMaxSize(),
-        verticalArrangement = Arrangement.Center,
+        modifier = modifier.fillMaxSize().padding(16.dp),
+        verticalArrangement = Arrangement.Top,
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         if (showDenial) {
@@ -143,6 +155,22 @@ fun MainScreen(
         } else {
             Button(onClick = onStartCapture) {
                 Text("Start Capture")
+            }
+        }
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        Text(text = "App Traffic Summaries", style = MaterialTheme.typography.headlineSmall)
+        
+        summaries.forEach { summary ->
+            Card(
+                modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)
+            ) {
+                Column(modifier = Modifier.padding(8.dp)) {
+                    Text(text = summary.packageName, style = MaterialTheme.typography.bodyLarge)
+                    Text(text = "Sent: ${summary.totalBytesSent} bytes | Received: ${summary.totalBytesReceived} bytes")
+                    Text(text = "Alerts: ${summary.alertCount}", color = if (summary.alertCount > 0) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary)
+                }
             }
         }
     }
