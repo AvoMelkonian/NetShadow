@@ -1,58 +1,101 @@
 package com.example.netshadow.ui.theme
 
-import android.app.Activity
-import android.os.Build
-import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Text
 import androidx.compose.material3.darkColorScheme
-import androidx.compose.material3.dynamicDarkColorScheme
-import androidx.compose.material3.dynamicLightColorScheme
-import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Paint
+import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
+import androidx.compose.ui.graphics.nativeCanvas
+import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.dp
 
 private val DarkColorScheme = darkColorScheme(
-    primary = Purple80,
-    secondary = PurpleGrey80,
-    tertiary = Pink80
-)
-
-private val LightColorScheme = lightColorScheme(
-    primary = Purple40,
-    secondary = PurpleGrey40,
-    tertiary = Pink40
-
-    /* Other default colors to override
-    background = Color(0xFFFFFBFE),
-    surface = Color(0xFFFFFBFE),
-    onPrimary = Color.White,
-    onSecondary = Color.White,
-    onTertiary = Color.White,
-    onBackground = Color(0xFF1C1B1F),
-    onSurface = Color(0xFF1C1B1F),
-    */
+    primary = NeonGreen,
+    onPrimary = OnPrimary,
+    background = Black,
+    onBackground = OnBackground,
+    surface = SurfaceCard,
+    onSurface = OnSurface,
+    surfaceVariant = SurfaceDim,
+    outline = BorderColor,
+    error = ErrorLight
 )
 
 @Composable
 fun NetShadowTheme(
-    darkTheme: Boolean = isSystemInDarkTheme(),
-    // Dynamic color is available on Android 12+
-    dynamicColor: Boolean = true,
     content: @Composable () -> Unit
 ) {
-    val colorScheme = when {
-        dynamicColor && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S -> {
-            val context = LocalContext.current
-            if (darkTheme) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
-        }
-
-        darkTheme -> DarkColorScheme
-        else -> LightColorScheme
-    }
-
     MaterialTheme(
-        colorScheme = colorScheme,
+        colorScheme = DarkColorScheme,
         typography = Typography,
+        shapes = Shapes,
         content = content
     )
+}
+
+/**
+ * Reusable glow helper for Phase 3 (active connections) and Phase 5 (critical alerts).
+ */
+fun Modifier.glowBorder(
+    color: Color,
+    glowRadius: Dp = 8.dp
+) = this.drawBehind {
+    val paint = Paint().asFrameworkPaint().apply {
+        setShadowLayer(glowRadius.toPx(), 0f, 0f, color.copy(alpha = 0.3f).toArgb())
+    }
+    drawIntoCanvas { canvas ->
+        canvas.nativeCanvas.drawRoundRect(
+            0f, 0f, size.width, size.height,
+            8.dp.toPx(), 8.dp.toPx(), paint
+        )
+    }
+}
+
+@Preview(showBackground = true)
+@Composable
+fun ThemeBaselinePreview() {
+    NetShadowTheme {
+        Scaffold(
+            containerColor = Black // True-black viewport
+        ) { padding ->
+            Card(
+                modifier = Modifier
+                    .padding(padding)
+                    .padding(16.dp)
+                    .fillMaxWidth(),
+                colors = CardDefaults.cardColors(
+                    containerColor = SurfaceCard // #121212 card
+                ),
+                border = BorderStroke(1.dp, BorderColor),
+                shape = Shapes.medium
+            ) {
+                Column(
+                    modifier = Modifier.padding(16.dp)
+                ) {
+                    Text(
+                        "NETSHADOW BASELINE",
+                        style = MaterialTheme.typography.labelLarge
+                    )
+                    Text(
+                        "192.168.1.1",
+                        style = MaterialTheme.typography.labelSmall, // Roboto Mono
+                        color = NeonGreen
+                    )
+                }
+            }
+        }
+    }
 }
