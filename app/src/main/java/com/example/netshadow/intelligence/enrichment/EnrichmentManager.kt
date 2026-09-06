@@ -55,7 +55,7 @@ class EnrichmentManager(
                 if (enriched != event) {
                     connectionEventDao.upsert(enriched)
                 }
-                
+
                 // 4. Rule Evaluation (now with enriched data)
                 evaluateRules(enriched)
                 

@@ -18,6 +18,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.example.netshadow.data.model.AppSummary
+import com.example.netshadow.data.model.AlertEvent
+import com.example.netshadow.data.model.BaselineSummary
+import androidx.compose.foundation.layout.Spacer
 
 import androidx.compose.runtime.getValue
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -94,10 +97,34 @@ fun StatsScreen(
 fun IntelScreen(viewModel: IntelViewModel) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     
-    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+    Box(modifier = Modifier.fillMaxSize().padding(16.dp)) {
+        Column(horizontalAlignment = Alignment.Start) {
             Text("NETSHADOW_INTEL", style = MaterialTheme.typography.headlineMedium)
-            Text("Selected: ${uiState.selectedAppPackage ?: "None"}")
+            Spacer(modifier = Modifier.height(8.dp))
+            
+            if (uiState.selectedAppPackage == null) {
+                Text("Select an app from STATS to see details.")
+            } else {
+                Text("App: ${uiState.selectedAppPackage}", style = MaterialTheme.typography.titleLarge)
+                
+                uiState.baseline?.let { baseline ->
+                    Card(modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp)) {
+                        Column(modifier = Modifier.padding(16.dp)) {
+                            Text("Baseline Summary", style = MaterialTheme.typography.titleMedium)
+                            Text(baseline.summaryText)
+                            Text("Trust Score: ${(baseline.trustScore * 100).toInt()}%")
+                            Text("Allowed Countries: ${baseline.allowedCountries.joinToString()}")
+                        }
+                    }
+                }
+                
+                if (uiState.recentAlerts.isNotEmpty()) {
+                    Text("Recent Alerts", style = MaterialTheme.typography.titleMedium)
+                    uiState.recentAlerts.forEach { alert ->
+                        Text("! ${alert.message}", color = MaterialTheme.colorScheme.error)
+                    }
+                }
+            }
         }
     }
 }
@@ -106,10 +133,27 @@ fun IntelScreen(viewModel: IntelViewModel) {
 fun AlertsScreen(viewModel: AlertsViewModel) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     
-    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+    Box(modifier = Modifier.fillMaxSize().padding(16.dp)) {
+        Column {
             Text("NETSHADOW_ALERTS", style = MaterialTheme.typography.headlineMedium)
-            Text("Unread: ${uiState.unreadCount}")
+            Spacer(modifier = Modifier.height(8.dp))
+            Text("Unread: ${uiState.unreadCount}", style = MaterialTheme.typography.titleMedium)
+            
+            Spacer(modifier = Modifier.height(16.dp))
+            
+            if (uiState.alerts.isEmpty()) {
+                Text("No active threats detected.")
+            } else {
+                uiState.alerts.forEach { alert ->
+                    Card(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
+                        Column(modifier = Modifier.padding(8.dp)) {
+                            Text(text = alert.packageName, style = MaterialTheme.typography.labelSmall)
+                            Text(text = alert.message, style = MaterialTheme.typography.bodyLarge)
+                            Text(text = "Severity: ${alert.severity}", style = MaterialTheme.typography.bodySmall)
+                        }
+                    }
+                }
+            }
         }
     }
 }

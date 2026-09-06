@@ -50,7 +50,7 @@ class TrafficRepository(
 
     suspend fun logConnections(events: List<ConnectionEvent>) = withContext(Dispatchers.IO) {
         if (events.isEmpty()) return@withContext
-        
+
         val entities = events.map { it.toEntity() }
         connectionEventDao.upsertAll(entities)
 
