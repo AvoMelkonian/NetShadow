@@ -23,23 +23,46 @@ import com.example.netshadow.ui.screens.StatsScreen
 import com.example.netshadow.ui.theme.Black
 import com.example.netshadow.ui.theme.NeonGreen
 
-import androidx.compose.runtime.collectAsState
-import com.example.netshadow.ui.DashboardViewModel
+import androidx.lifecycle.viewmodel.compose.viewModel
+import com.example.netshadow.data.repository.TrafficRepository
+import com.example.netshadow.ui.AlertsViewModel
+import com.example.netshadow.ui.CtrlViewModel
+import com.example.netshadow.ui.IntelViewModel
+import com.example.netshadow.ui.StatsViewModel
 
 @Composable
 fun MainNavigationContainer(
-    viewModel: DashboardViewModel,
+    repository: TrafficRepository,
     showDenial: Boolean,
     onStartCapture: () -> Unit,
-    onRetry: () -> Unit,
-    onExport: () -> Unit
+    onRetry: () -> Unit
 ) {
     val navController = rememberNavController()
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = navBackStackEntry?.destination?.route
 
-    val summaries by viewModel.appSummaries.collectAsState()
-    val exportStatus by viewModel.exportStatus.collectAsState()
+    // StatsViewModel needs a custom factory for the repository
+    val statsViewModel: StatsViewModel = viewModel(
+        factory = StatsViewModel.Factory(repository)
+    )
+    
+    // For now, others can be instantiated directly or with simple factories if they need repository
+    // Stubbing them with simple instantiation if they don't have custom factories yet
+    // Actually, Intel and Alerts also need repository. I should add factories to them too eventually.
+    // For Part 3, I'll just provide them.
+    val intelViewModel: IntelViewModel = viewModel(
+        factory = object : androidx.lifecycle.ViewModelProvider.Factory {
+            override fun <T : androidx.lifecycle.ViewModel> create(modelClass: Class<T>): T = IntelViewModel(repository) as T
+        }
+    )
+    val alertsViewModel: AlertsViewModel = viewModel(
+        factory = object : androidx.lifecycle.ViewModelProvider.Factory {
+            override fun <T : androidx.lifecycle.ViewModel> create(modelClass: Class<T>): T = AlertsViewModel(repository) as T
+        }
+    )
+    val ctrlViewModel: CtrlViewModel = viewModel()
+
+    val context = androidx.compose.ui.platform.LocalContext.current
 
     Scaffold(
         topBar = {
@@ -82,17 +105,18 @@ fun MainNavigationContainer(
         ) {
             composable(Screen.Stats.route) {
                 StatsScreen(
+                    viewModel = statsViewModel,
                     showDenial = showDenial,
-                    summaries = summaries,
-                    exportStatus = exportStatus,
                     onStartCapture = onStartCapture,
                     onRetry = onRetry,
-                    onExport = onExport
+                    onExport = {
+                        context.getExternalFilesDir(null)?.let { statsViewModel.exportLog(it) }
+                    }
                 )
             }
-            composable(Screen.Intel.route) { IntelScreen() }
-            composable(Screen.Alerts.route) { AlertsScreen() }
-            composable(Screen.Ctrl.route) { CtrlScreen() }
+            composable(Screen.Intel.route) { IntelScreen(intelViewModel) }
+            composable(Screen.Alerts.route) { AlertsScreen(alertsViewModel) }
+            composable(Screen.Ctrl.route) { CtrlScreen(ctrlViewModel) }
         }
     }
 }

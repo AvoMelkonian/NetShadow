@@ -20,7 +20,6 @@ import androidx.core.content.ContextCompat
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.netshadow.capture.vpn.NetShadowVpnService
 import com.example.netshadow.data.model.AppSummary
-import com.example.netshadow.ui.DashboardViewModel
 import com.example.netshadow.ui.theme.NetShadowTheme
 
 import com.example.netshadow.ui.navigation.MainNavigationContainer
@@ -56,22 +55,16 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         
         val repository = (application as NetShadowApp).trafficRepository
-        val viewModelFactory = DashboardViewModel.Factory(repository)
 
         setContent {
             NetShadowTheme {
-                val viewModel: DashboardViewModel = viewModel(factory = viewModelFactory)
-
                 MainNavigationContainer(
-                    viewModel = viewModel,
+                    repository = repository,
                     showDenial = showDenialUI.value,
                     onStartCapture = { prepareVpn() },
                     onRetry = {
                         showDenialUI.value = false
                         prepareVpn()
-                    },
-                    onExport = {
-                        getExternalFilesDir(null)?.let { viewModel.exportLog(it) }
                     }
                 )
             }

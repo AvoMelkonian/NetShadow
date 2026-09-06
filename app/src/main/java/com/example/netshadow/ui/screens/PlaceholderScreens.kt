@@ -19,15 +19,24 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.example.netshadow.data.model.AppSummary
 
+import androidx.compose.runtime.getValue
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.example.netshadow.ui.AlertsViewModel
+import com.example.netshadow.ui.CtrlViewModel
+import com.example.netshadow.ui.IntelViewModel
+import com.example.netshadow.ui.StatsViewModel
+
 @Composable
 fun StatsScreen(
+    viewModel: StatsViewModel,
     showDenial: Boolean,
-    summaries: List<AppSummary>,
-    exportStatus: String?,
     onStartCapture: () -> Unit,
     onRetry: () -> Unit,
     onExport: () -> Unit
 ) {
+    val summaries by viewModel.appSummaries.collectAsStateWithLifecycle()
+    val exportStatus by viewModel.exportStatus.collectAsStateWithLifecycle()
+
     Column(
         modifier = Modifier.fillMaxSize().padding(16.dp),
         verticalArrangement = Arrangement.Top,
@@ -47,7 +56,10 @@ fun StatsScreen(
                 }
             }
             
-            Button(onClick = onExport) {
+            Button(onClick = { 
+                // In a real app we'd get the dir from the activity/context
+                onExport() 
+            }) {
                 Text("Export CSV")
             }
         }
@@ -62,7 +74,7 @@ fun StatsScreen(
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        Text(text = "TODO: STATS (Dashboard)", style = MaterialTheme.typography.headlineSmall)
+        Text(text = "NETSHADOW_STATS", style = MaterialTheme.typography.headlineSmall)
         
         summaries.forEach { summary ->
             Card(
@@ -79,22 +91,37 @@ fun StatsScreen(
 }
 
 @Composable
-fun IntelScreen() {
+fun IntelScreen(viewModel: IntelViewModel) {
+    val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    
     Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-        Text("TODO: INTEL (Per-App Detail)", style = MaterialTheme.typography.headlineMedium)
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Text("NETSHADOW_INTEL", style = MaterialTheme.typography.headlineMedium)
+            Text("Selected: ${uiState.selectedAppPackage ?: "None"}")
+        }
     }
 }
 
 @Composable
-fun AlertsScreen() {
+fun AlertsScreen(viewModel: AlertsViewModel) {
+    val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    
     Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-        Text("TODO: ALERTS", style = MaterialTheme.typography.headlineMedium)
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Text("NETSHADOW_ALERTS", style = MaterialTheme.typography.headlineMedium)
+            Text("Unread: ${uiState.unreadCount}")
+        }
     }
 }
 
 @Composable
-fun CtrlScreen() {
+fun CtrlScreen(viewModel: CtrlViewModel) {
+    val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    
     Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-        Text("TODO: CTRL (Settings)", style = MaterialTheme.typography.headlineMedium)
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Text("NETSHADOW_CTRL", style = MaterialTheme.typography.headlineMedium)
+            Text("VPN Status: ${if (uiState.vpnEnabled) "ACTIVE" else "INACTIVE"}")
+        }
     }
 }
