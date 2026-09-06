@@ -34,7 +34,7 @@ import com.example.netshadow.ui.StatsViewModel
 fun MainNavigationContainer(
     repository: TrafficRepository,
     showDenial: Boolean,
-    onStartCapture: () -> Unit,
+    onToggleCapture: (Boolean) -> Unit,
     onRetry: () -> Unit
 ) {
     val navController = rememberNavController()
@@ -107,7 +107,14 @@ fun MainNavigationContainer(
                 StatsScreen(
                     viewModel = statsViewModel,
                     showDenial = showDenial,
-                    onStartCapture = onStartCapture,
+                    onToggleCapture = { active ->
+                        onToggleCapture(active)
+                        if (active) {
+                            statsViewModel.startMockFeed()
+                        } else {
+                            statsViewModel.stopMockFeed()
+                        }
+                    },
                     onRetry = onRetry,
                     onExport = {
                         context.getExternalFilesDir(null)?.let { statsViewModel.exportLog(it) }

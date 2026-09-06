@@ -42,8 +42,8 @@ interface ConnectionEventDao {
     @Query("""
         SELECT 
             ce.packageName,
-            (SELECT packageName FROM connection_events WHERE packageName = ce.packageName LIMIT 1) as appName,
-            0 as liveConnectionCount,
+            ce.packageName as appName,
+            COUNT(DISTINCT ce.connectionId) as liveConnectionCount,
             SUM(ce.bytesSent) as totalBytesSent,
             SUM(ce.bytesReceived) as totalBytesReceived,
             (SELECT COUNT(*) FROM anomaly_alerts aa WHERE aa.packageName = ce.packageName) as alertCount

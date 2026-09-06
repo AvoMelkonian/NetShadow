@@ -1,5 +1,6 @@
 package com.example.netshadow.data.repository
 
+import android.util.Log
 import com.example.netshadow.capture.model.ConnectionEvent
 import com.example.netshadow.capture.model.NetworkProtocol
 import com.example.netshadow.capture.model.TrafficDirection
@@ -19,6 +20,7 @@ import com.example.netshadow.intelligence.dns.DnsResolver
 import com.example.netshadow.intelligence.enrichment.EnrichmentManager
 import com.example.netshadow.intelligence.trackers.TrackerMatcher
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.withContext
 import java.text.SimpleDateFormat
@@ -33,16 +35,32 @@ class TrafficRepository(
     private val trackerMatcher: TrackerMatcher? = null,
     private val dnsResolver: DnsResolver = DefaultDnsResolver
 ) {
+    private val _realtimeEvents = MutableSharedFlow<ConnectionEvent>(
+        replay = 0,
+        extraBufferCapacity = 100,
+        onBufferOverflow = BufferOverflow.DROP_OLDEST
+    )
+    val realtimeEvents = _realtimeEvents.asSharedFlow()
+
+    private val _enrichedEvents = MutableSharedFlow<ConnectionEventEntity>(
+        replay = 0,
+        extraBufferCapacity = 100,
+        onBufferOverflow = BufferOverflow.DROP_OLDEST
+    )
+    val enrichedEvents = _enrichedEvents.asSharedFlow()
+
     private val enrichmentManager = EnrichmentManager(
         connectionEventDao,
         appBaselineDao,
         anomalyAlertDao,
         geoIpService,
         trackerMatcher,
-        dnsResolver
+        dnsResolver,
+        onEnriched = { _enrichedEvents.tryEmit(it) }
     )
 
     suspend fun logConnection(event: ConnectionEvent) = withContext(Dispatchers.IO) {
+        _realtimeEvents.emit(event)
         val entity = event.toEntity()
         connectionEventDao.upsert(entity)
         enrichmentManager.enrichAsync(entity)
@@ -50,6 +68,8 @@ class TrafficRepository(
 
     suspend fun logConnections(events: List<ConnectionEvent>) = withContext(Dispatchers.IO) {
         if (events.isEmpty()) return@withContext
+
+        events.forEach { _realtimeEvents.emit(it) }
 
         val entities = events.map { it.toEntity() }
         connectionEventDao.upsertAll(entities)

@@ -61,7 +61,13 @@ class MainActivity : ComponentActivity() {
                 MainNavigationContainer(
                     repository = repository,
                     showDenial = showDenialUI.value,
-                    onStartCapture = { prepareVpn() },
+                    onToggleCapture = { active ->
+                        if (active) {
+                            prepareVpn()
+                        } else {
+                            stopVpnService()
+                        }
+                    },
                     onRetry = {
                         showDenialUI.value = false
                         prepareVpn()
@@ -69,6 +75,14 @@ class MainActivity : ComponentActivity() {
                 )
             }
         }
+    }
+
+    private fun stopVpnService() {
+        val intent = Intent(this, NetShadowVpnService::class.java).apply {
+            action = "com.example.netshadow.STOP_VPN"
+        }
+        startService(intent)
+        Toast.makeText(this, "VPN Service Stopped", Toast.LENGTH_SHORT).show()
     }
 
     private fun prepareVpn() {

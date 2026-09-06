@@ -22,7 +22,8 @@ class EnrichmentManager(
     private val geoIpService: GeoIpService?,
     private val trackerMatcher: TrackerMatcher?,
     private val dnsResolver: DnsResolver,
-    private val scope: CoroutineScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
+    private val scope: CoroutineScope = CoroutineScope(Dispatchers.IO + SupervisorJob()),
+    private val onEnriched: ((ConnectionEventEntity) -> Unit)? = null
 ) {
     private val ruleEvaluator = RuleEvaluator(geoIpService, trackerMatcher)
 
@@ -55,6 +56,8 @@ class EnrichmentManager(
                 if (enriched != event) {
                     connectionEventDao.upsert(enriched)
                 }
+
+                onEnriched?.invoke(enriched)
 
                 // 4. Rule Evaluation (now with enriched data)
                 evaluateRules(enriched)
