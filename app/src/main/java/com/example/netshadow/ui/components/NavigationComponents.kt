@@ -27,17 +27,17 @@ fun NetShadowTopAppBar(
     Surface(
         modifier = modifier
             .fillMaxWidth()
-            .height(56.dp),
-        color = Black,
-        border = null // Top bar often doesn't have a bottom border in this design, but let's see
+            .statusBarsPadding()
+            .height(64.dp), // Increased from 56dp
+        color = Black
     ) {
         Row(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(horizontal = 8.dp),
+                .padding(horizontal = 12.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Box(modifier = Modifier.width(48.dp), contentAlignment = Alignment.Center) {
+            Box(modifier = Modifier.width(48.dp), contentAlignment = Alignment.CenterStart) {
                 leadingIcon?.invoke()
             }
             
@@ -52,7 +52,7 @@ fun NetShadowTopAppBar(
                 textAlign = androidx.compose.ui.text.style.TextAlign.Center
             )
 
-            Box(modifier = Modifier.width(48.dp), contentAlignment = Alignment.Center) {
+            Box(modifier = Modifier.width(48.dp), contentAlignment = Alignment.CenterEnd) {
                 trailingIcon?.invoke()
             }
         }
@@ -64,42 +64,49 @@ fun NetShadowBottomNavigation(
     currentRoute: String?,
     onNavigate: (Screen) -> Unit
 ) {
-    Column {
-        // 1px Outline per DESIGN.md
-        HorizontalDivider(color = BorderColor, thickness = 1.dp)
-        
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .background(SurfaceCard)
-                .padding(vertical = 8.dp),
-            horizontalArrangement = Arrangement.SpaceAround,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            bottomNavItems.forEach { screen ->
-                val isSelected = currentRoute == screen.route
-                val tint = if (isSelected) NeonGreen else Color.Gray
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .navigationBarsPadding(),
+        color = SurfaceCard
+    ) {
+        Column {
+            // 1px Outline per DESIGN.md
+            HorizontalDivider(color = BorderColor, thickness = 1.dp)
+            
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 16.dp), // Increased padding for non-3-button nav
+                horizontalArrangement = Arrangement.SpaceAround,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                bottomNavItems.forEach { screen ->
+                    val isSelected = currentRoute == screen.route
+                    val tint = if (isSelected) NeonGreen else Color.Gray
 
-                Column(
-                    modifier = Modifier
-                        .clickable { onNavigate(screen) }
-                        .padding(horizontal = 12.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
-                    Icon(
-                        imageVector = screen.icon,
-                        contentDescription = screen.label,
-                        tint = tint,
-                        modifier = Modifier.size(24.dp)
-                    )
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Text(
-                        text = screen.label,
-                        style = MaterialTheme.typography.labelSmall.copy( // labelSmall is Roboto Mono
-                            color = tint,
-                            fontSize = 10.sp
+                    Column(
+                        modifier = Modifier
+                            .clickable { onNavigate(screen) }
+                            .padding(horizontal = 12.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Icon(
+                            imageVector = screen.icon,
+                            contentDescription = screen.label,
+                            tint = tint,
+                            modifier = Modifier.size(26.dp) // Slightly larger icons
                         )
-                    )
+                        Spacer(modifier = Modifier.height(6.dp))
+                        Text(
+                            text = screen.label,
+                            style = MaterialTheme.typography.labelSmall.copy(
+                                color = tint,
+                                fontSize = 11.sp, // Slightly larger text
+                                fontWeight = FontWeight.SemiBold
+                            )
+                        )
+                    }
                 }
             }
         }
