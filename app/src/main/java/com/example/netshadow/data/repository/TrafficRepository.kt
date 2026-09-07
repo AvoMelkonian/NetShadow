@@ -126,6 +126,13 @@ class TrafficRepository(
         apps.forEach { computeBaseline(it) }
     }
 
+    suspend fun resetBaseline(packageName: String) = withContext(Dispatchers.IO) {
+        val existing = appBaselineDao.getBaselineForApp(packageName)
+        if (existing != null) {
+            appBaselineDao.deleteBaseline(existing)
+        }
+    }
+
     fun getAppSummaries(): Flow<List<com.example.netshadow.data.model.AppSummary>> {
         return connectionEventDao.getAppSummaries()
     }

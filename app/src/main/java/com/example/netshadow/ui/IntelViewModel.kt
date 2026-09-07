@@ -1,5 +1,6 @@
 package com.example.netshadow.ui
 
+import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.netshadow.data.entity.ConnectionEventEntity
@@ -75,5 +76,15 @@ class IntelViewModel(private val trafficRepository: TrafficRepository) : ViewMod
 
     fun selectApp(packageName: String) {
         _selectedPackage.value = packageName
+    }
+
+    class Factory(private val repository: TrafficRepository) : ViewModelProvider.Factory {
+        override fun <T : ViewModel> create(modelClass: Class<T>): T {
+            if (modelClass.isAssignableFrom(IntelViewModel::class.java)) {
+                @Suppress("UNCHECKED_CAST")
+                return IntelViewModel(repository) as T
+            }
+            throw IllegalArgumentException("Unknown ViewModel class")
+        }
     }
 }

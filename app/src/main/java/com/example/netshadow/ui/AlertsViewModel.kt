@@ -1,6 +1,7 @@
 package com.example.netshadow.ui
 
 import android.util.Log
+import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.netshadow.data.model.AlertEvent
@@ -85,6 +86,16 @@ class AlertsViewModel(private val trafficRepository: TrafficRepository) : ViewMo
         // Mock remediation logic
         Log.d("AlertsViewModel", "Remediating and closing alert $alertId")
         selectAlert(null)
+    }
+
+    class Factory(private val repository: TrafficRepository) : ViewModelProvider.Factory {
+        override fun <T : ViewModel> create(modelClass: Class<T>): T {
+            if (modelClass.isAssignableFrom(AlertsViewModel::class.java)) {
+                @Suppress("UNCHECKED_CAST")
+                return AlertsViewModel(repository) as T
+            }
+            throw IllegalArgumentException("Unknown ViewModel class")
+        }
     }
 }
 

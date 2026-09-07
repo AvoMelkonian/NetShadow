@@ -49,21 +49,15 @@ fun MainNavigationContainer(
         factory = StatsViewModel.Factory(repository)
     )
     
-    // For now, others can be instantiated directly or with simple factories if they need repository
-    // Stubbing them with simple instantiation if they don't have custom factories yet
-    // Actually, Intel and Alerts also need repository. I should add factories to them too eventually.
-    // For Part 3, I'll just provide them.
     val intelViewModel: IntelViewModel = viewModel(
-        factory = object : androidx.lifecycle.ViewModelProvider.Factory {
-            override fun <T : androidx.lifecycle.ViewModel> create(modelClass: Class<T>): T = IntelViewModel(repository) as T
-        }
+        factory = IntelViewModel.Factory(repository)
     )
     val alertsViewModel: AlertsViewModel = viewModel(
-        factory = object : androidx.lifecycle.ViewModelProvider.Factory {
-            override fun <T : androidx.lifecycle.ViewModel> create(modelClass: Class<T>): T = AlertsViewModel(repository) as T
-        }
+        factory = AlertsViewModel.Factory(repository)
     )
-    val ctrlViewModel: CtrlViewModel = viewModel()
+    val ctrlViewModel: CtrlViewModel = viewModel(
+        factory = CtrlViewModel.Factory(repository)
+    )
 
     val context = androidx.compose.ui.platform.LocalContext.current
 
@@ -157,7 +151,19 @@ fun MainNavigationContainer(
                     isWideScreen = false // Could use WindowSizeClass here later
                 )
             }
-            composable(Screen.Ctrl.route) { CtrlScreen(ctrlViewModel) }
+            composable(Screen.Ctrl.route) { 
+                CtrlScreen(
+                    viewModel = ctrlViewModel,
+                    onToggleVpn = { active ->
+                        onToggleCapture(active)
+                        if (active) {
+                            statsViewModel.startMockFeed()
+                        } else {
+                            statsViewModel.stopMockFeed()
+                        }
+                    }
+                ) 
+            }
         }
     }
 }
