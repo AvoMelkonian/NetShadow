@@ -8,12 +8,15 @@ import androidx.compose.material.icons.filled.Shield
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Modifier
 import androidx.navigation.NavHostController
+import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
+import androidx.navigation.navArgument
 import com.example.netshadow.ui.components.NetShadowBottomNavigation
 import com.example.netshadow.ui.components.NetShadowTopAppBar
 import com.example.netshadow.ui.screens.AlertsScreen
@@ -68,9 +71,10 @@ fun MainNavigationContainer(
         topBar = {
             NetShadowTopAppBar(
                 leadingIcon = {
-                    when (currentRoute) {
-                        Screen.Stats.route -> Icon(Icons.Default.Person, contentDescription = "Profile", tint = NeonGreen)
-                        Screen.Ctrl.route -> Icon(Icons.Default.Menu, contentDescription = "Menu", tint = NeonGreen)
+                    when {
+                        currentRoute == Screen.Stats.route -> Icon(Icons.Default.Person, contentDescription = "Profile", tint = NeonGreen)
+                        currentRoute?.startsWith(Screen.Intel.route) == true -> Icon(Icons.Default.Person, contentDescription = "Profile", tint = NeonGreen)
+                        currentRoute == Screen.Ctrl.route -> Icon(Icons.Default.Menu, contentDescription = "Menu", tint = NeonGreen)
                         else -> null
                     }
                 },
@@ -86,11 +90,18 @@ fun MainNavigationContainer(
             NetShadowBottomNavigation(
                 currentRoute = currentRoute,
                 onNavigate = { screen ->
+                    // Standard bottom navigation behavior
                     navController.navigate(screen.route) {
+                        // Pop up to the start destination of the graph to
+                        // avoid building up a large stack of destinations
+                        // on the back stack as users select items
                         popUpTo(navController.graph.startDestinationId) {
                             saveState = true
                         }
+                        // Avoid multiple copies of the same destination when
+                        // reselecting the same item
                         launchSingleTop = true
+                        // Restore state when reselecting a previously selected item
                         restoreState = true
                     }
                 }
@@ -118,8 +129,26 @@ fun MainNavigationContainer(
                     onRetry = onRetry,
                     onExport = {
                         context.getExternalFilesDir(null)?.let { statsViewModel.exportLog(it) }
+                    },
+                    onAppClick = { packageName ->
+                        navController.navigate("${Screen.Intel.route}/$packageName")
                     }
                 )
+            }
+            composable(
+                route = Screen.Intel.routeWithArgs,
+                arguments = listOf(navArgument(Screen.Intel.argPackageName) {
+                    type = NavType.StringType
+                    nullable = true
+                })
+            ) { backStackEntry ->
+                val packageName = backStackEntry.arguments?.getString(Screen.Intel.argPackageName)
+                LaunchedEffect(packageName) {
+                    if (packageName != null) {
+                        intelViewModel.selectApp(packageName)
+                    }
+                }
+                IntelScreen(intelViewModel)
             }
             composable(Screen.Intel.route) { IntelScreen(intelViewModel) }
             composable(Screen.Alerts.route) { AlertsScreen(alertsViewModel) }
