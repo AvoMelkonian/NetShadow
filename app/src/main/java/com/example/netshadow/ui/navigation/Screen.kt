@@ -13,7 +13,10 @@ sealed class Screen(val route: String, val label: String, val icon: ImageVector)
         const val argPackageName = "packageName"
         val routeWithArgs = "$route/{$argPackageName}"
     }
-    data object Alerts : Screen("alerts", "ALERTS", Icons.Default.Notifications)
+    data object Alerts : Screen("alerts", "ALERTS", Icons.Default.Notifications) {
+        const val argAlertId = "alertId"
+        val routeWithArgs = "$route/{$argAlertId}"
+    }
     data object Ctrl : Screen("ctrl", "CTRL", Icons.Default.Settings)
 }
 

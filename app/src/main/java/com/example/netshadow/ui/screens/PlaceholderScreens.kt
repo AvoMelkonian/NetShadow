@@ -773,35 +773,6 @@ fun BehavioralAnalysisCard(baseline: BaselineSummary?, alerts: List<AlertEvent>)
 }
 
 @Composable
-fun AlertsScreen(viewModel: AlertsViewModel) {
-    val uiState by viewModel.uiState.collectAsStateWithLifecycle()
-    
-    Box(modifier = Modifier.fillMaxSize().padding(16.dp)) {
-        Column {
-            Text("NETSHADOW_ALERTS", style = MaterialTheme.typography.headlineMedium)
-            Spacer(modifier = Modifier.height(8.dp))
-            Text("Unread: ${uiState.unreadCount}", style = MaterialTheme.typography.titleMedium)
-            
-            Spacer(modifier = Modifier.height(16.dp))
-            
-            if (uiState.alerts.isEmpty()) {
-                Text("No active threats detected.")
-            } else {
-                uiState.alerts.forEach { alert ->
-                    Card(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
-                        Column(modifier = Modifier.padding(8.dp)) {
-                            Text(text = alert.packageName, style = MaterialTheme.typography.labelSmall)
-                            Text(text = alert.message, style = MaterialTheme.typography.bodyLarge)
-                            Text(text = "Severity: ${alert.severity}", style = MaterialTheme.typography.bodySmall)
-                        }
-                    }
-                }
-            }
-        }
-    }
-}
-
-@Composable
 fun CtrlScreen(viewModel: CtrlViewModel) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     

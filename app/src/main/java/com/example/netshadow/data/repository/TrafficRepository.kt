@@ -14,6 +14,7 @@ import com.example.netshadow.data.entity.ConnectionEventEntity
 import com.example.netshadow.data.model.AppDetail
 import com.example.netshadow.data.model.Direction
 import com.example.netshadow.data.model.Protocol
+import com.example.netshadow.data.model.ExpectedType
 import com.example.netshadow.intelligence.RuleEvaluator
 import com.example.netshadow.intelligence.dns.DefaultDnsResolver
 import com.example.netshadow.intelligence.dns.DnsResolver
@@ -262,7 +263,3 @@ data class TrafficStats(
     val mean: Double,
     val stdDev: Double
 )
-
-enum class ExpectedType {
-    DOMAIN, IP, COUNTRY
-}

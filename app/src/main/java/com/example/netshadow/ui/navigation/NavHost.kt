@@ -151,7 +151,12 @@ fun MainNavigationContainer(
                 IntelScreen(intelViewModel)
             }
             composable(Screen.Intel.route) { IntelScreen(intelViewModel) }
-            composable(Screen.Alerts.route) { AlertsScreen(alertsViewModel) }
+            composable(Screen.Alerts.route) {
+                AlertsScreen(
+                    viewModel = alertsViewModel,
+                    isWideScreen = false // Could use WindowSizeClass here later
+                )
+            }
             composable(Screen.Ctrl.route) { CtrlScreen(ctrlViewModel) }
         }
     }
