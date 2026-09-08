@@ -162,22 +162,10 @@ fun AlertCard(
                 
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
+                    horizontalArrangement = Arrangement.Start,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     SignatureChip(alert.type.name)
-                    
-                    TextButton(
-                        onClick = { onMarkExpected() },
-                        contentPadding = PaddingValues(0.dp)
-                    ) {
-                        Text(
-                            "MARK AS EXPECTED",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = NeonGreen,
-                            textDecoration = androidx.compose.ui.text.style.TextDecoration.Underline
-                        )
-                    }
                 }
             }
         }

@@ -33,11 +33,15 @@ class StatsViewModel(private val trafficRepository: TrafficRepository) : ViewMod
     val exportStatus: StateFlow<String?> = _exportStatus
 
     val uiState: StateFlow<StatsUiState> = combine(
-        trafficRepository.getAppSummaries(),
-        trafficRepository.getAlerts(),
-        trafficRepository.enrichedEvents.scan(emptyList<ConnectionEventEntity>()) { acc, event ->
-            (listOf(event) + acc).take(50)
-        }.onStart { emit(emptyList()) },
+        trafficRepository.getAppSummaries().conflate(),
+        trafficRepository.getAlerts().conflate(),
+        trafficRepository.enrichedEvents
+            .scan(emptyList<ConnectionEventEntity>()) { acc, event ->
+                val newEventList = (listOf(event) + acc).distinctBy { it.connectionId }
+                newEventList.take(50)
+            }
+            .sample(300) // Update UI at most every 300ms
+            .onStart { emit(emptyList()) },
         _mockThroughput,
         _vpnStartTime,
         _isCapturing
@@ -59,7 +63,8 @@ class StatsViewModel(private val trafficRepository: TrafficRepository) : ViewMod
             vpnStartTime = startTime,
             exportStatus = _exportStatus.value
         )
-    }.stateIn(
+    }.flowOn(kotlinx.coroutines.Dispatchers.Default)
+    .stateIn(
         scope = viewModelScope,
         started = SharingStarted.WhileSubscribed(5000),
         initialValue = StatsUiState()

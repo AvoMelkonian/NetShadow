@@ -8,6 +8,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -42,12 +43,13 @@ fun NetShadowTopAppBar(
             }
             
             Text(
-                text = "NETSHADOW_OS",
+                text = "NETSHADOW",
                 modifier = Modifier.weight(1f),
                 style = MaterialTheme.typography.headlineSmall.copy(
                     color = NeonGreen,
-                    fontWeight = FontWeight.Bold,
-                    letterSpacing = 2.sp
+                    fontWeight = FontWeight.Light,
+                    letterSpacing = 6.sp,
+                    fontFamily = FontFamily.Monospace
                 ),
                 textAlign = androidx.compose.ui.text.style.TextAlign.Center
             )

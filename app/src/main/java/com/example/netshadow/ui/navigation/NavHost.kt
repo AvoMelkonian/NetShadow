@@ -64,39 +64,25 @@ fun MainNavigationContainer(
     Scaffold(
         topBar = {
             NetShadowTopAppBar(
-                leadingIcon = {
-                    when {
-                        currentRoute == Screen.Stats.route -> Icon(Icons.Default.Person, contentDescription = "Profile", tint = NeonGreen)
-                        currentRoute?.startsWith(Screen.Intel.route) == true -> Icon(Icons.Default.Person, contentDescription = "Profile", tint = NeonGreen)
-                        currentRoute == Screen.Ctrl.route -> Icon(Icons.Default.Menu, contentDescription = "Menu", tint = NeonGreen)
-                        else -> null
-                    }
-                },
-                trailingIcon = {
-                    when (currentRoute) {
-                        Screen.Ctrl.route -> Icon(Icons.Default.Shield, contentDescription = "Shield", tint = NeonGreen)
-                        else -> null
-                    }
-                }
+                leadingIcon = null,
+                trailingIcon = null
             )
         },
         bottomBar = {
             NetShadowBottomNavigation(
                 currentRoute = currentRoute,
                 onNavigate = { screen ->
-                    // Standard bottom navigation behavior
-                    navController.navigate(screen.route) {
-                        // Pop up to the start destination of the graph to
-                        // avoid building up a large stack of destinations
-                        // on the back stack as users select items
-                        popUpTo(navController.graph.startDestinationId) {
-                            saveState = true
+                    // Deep navigation fix: 
+                    // 1. If we are navigating to the current top-level item, do nothing or scroll to top
+                    // 2. Otherwise, clear everything and go to the new screen
+                    if (currentRoute?.startsWith(screen.route) != true) {
+                        navController.navigate(screen.route) {
+                            // Pop up to the absolute root of the graph
+                            popUpTo(navController.graph.id) {
+                                inclusive = true
+                            }
+                            launchSingleTop = true
                         }
-                        // Avoid multiple copies of the same destination when
-                        // reselecting the same item
-                        launchSingleTop = true
-                        // Restore state when reselecting a previously selected item
-                        restoreState = true
                     }
                 }
             )

@@ -178,7 +178,8 @@ fun StatusBadge(status: String, pid: Int?, active: Boolean) {
 @Composable
 fun BracketedToggle(
     checked: Boolean,
-    onCheckedChange: (Boolean) -> Unit
+    onCheckedChange: (Boolean) -> Unit,
+    contentDescription: String? = null
 ) {
     Box(
         modifier = Modifier
@@ -198,7 +199,8 @@ fun BracketedToggle(
                 checkedTrackColor = NeonGreen.copy(alpha = 0.2f),
                 uncheckedThumbColor = Color.Gray,
                 uncheckedTrackColor = Color.DarkGray
-            )
+            ),
+            contentDescription = contentDescription
         )
     }
 }
@@ -209,9 +211,10 @@ fun ScaledSwitch(
     onCheckedChange: (Boolean) -> Unit,
     modifier: Modifier = Modifier,
     scale: Float = 1f,
-    colors: SwitchColors = SwitchDefaults.colors()
+    colors: SwitchColors = SwitchDefaults.colors(),
+    contentDescription: String? = null
 ) {
-    Switch(
+    androidx.compose.material3.Switch(
         checked = checked,
         onCheckedChange = onCheckedChange,
         modifier = modifier.graphicsLayer(scaleX = scale, scaleY = scale),

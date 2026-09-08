@@ -48,15 +48,18 @@ fun NetShadowTheme(
 
 /**
  * Reusable glow helper for Phase 3 (active connections) and Phase 5 (critical alerts).
+ * Optimized to avoid object allocation in draw phase.
  */
 fun Modifier.glowBorder(
     color: Color,
     glowRadius: Dp = 8.dp
 ) = this.drawBehind {
-    val paint = Paint().asFrameworkPaint().apply {
-        setShadowLayer(glowRadius.toPx(), 0f, 0f, color.copy(alpha = 0.3f).toArgb())
-    }
+    val radiusPx = glowRadius.toPx()
+    val colorArgb = color.copy(alpha = 0.3f).toArgb()
+    
     drawIntoCanvas { canvas ->
+        val paint = Paint().asFrameworkPaint()
+        paint.setShadowLayer(radiusPx, 0f, 0f, colorArgb)
         canvas.nativeCanvas.drawRoundRect(
             0f, 0f, size.width, size.height,
             8.dp.toPx(), 8.dp.toPx(), paint

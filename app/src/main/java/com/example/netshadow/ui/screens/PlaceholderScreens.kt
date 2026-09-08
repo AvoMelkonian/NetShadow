@@ -54,18 +54,21 @@ fun StatsScreen(
     LazyColumn(
         modifier = Modifier
             .fillMaxSize()
-            .padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp)
+            .padding(horizontal = 16.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp),
+        contentPadding = PaddingValues(vertical = 16.dp)
     ) {
-        item {
+        item(key = "header") {
             MissionControlHeader(
                 startTime = uiState.vpnStartTime,
                 isCapturing = uiState.isCapturing,
-                onToggle = onToggleCapture
+                showDenial = showDenial,
+                onToggle = onToggleCapture,
+                onRetry = onRetry
             )
         }
 
-        item {
+        item(key = "stat_cards") {
             StatCards(
                 activeConnections = uiState.activeConnections,
                 throughput = uiState.throughputMbps,
@@ -73,18 +76,50 @@ fun StatsScreen(
             )
         }
 
-        item {
-            TopApplicationSignatures(
-                summaries = uiState.summaries,
-                onAppClick = onAppClick
+        item(key = "top_apps_header") {
+            Text(
+                text = "TOP APPLICATION SIGNATURES",
+                style = MaterialTheme.typography.labelLarge,
+                color = Color.Gray
             )
         }
 
-        item {
-            LiveNetworkStream(
-                events = uiState.recentEvents,
-                onAppClick = onAppClick
+        item(key = "top_apps_row") {
+            TopApplicationSignatures(
+                summaries = uiState.summaries,
+                onAppClick = onAppClick,
+                showHeader = false
             )
+        }
+
+        item(key = "live_stream_header") {
+            LiveStreamHeader()
+        }
+
+        item(key = "live_stream_table_header") {
+            LiveStreamTableHeader()
+        }
+
+        if (uiState.recentEvents.isEmpty()) {
+            item(key = "empty_stream") {
+                Text(
+                    "STREAMING INACTIVE",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = Color.DarkGray,
+                    modifier = Modifier.fillMaxWidth().padding(vertical = 12.dp),
+                    textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                )
+            }
+        } else {
+            items(
+                items = uiState.recentEvents.take(15),
+                key = { it.connectionId }
+            ) { event ->
+                NetworkEventRow(
+                    event = event,
+                    onClick = { onAppClick(event.packageName) }
+                )
+            }
         }
     }
 }
@@ -92,28 +127,41 @@ fun StatsScreen(
 @Composable
 fun TopApplicationSignatures(
     summaries: List<AppSummary>,
-    onAppClick: (String) -> Unit
+    onAppClick: (String) -> Unit,
+    showHeader: Boolean = true
 ) {
     val sortedApps = remember(summaries) { 
         summaries.sortedByDescending { it.liveConnectionCount }.take(10)
     }
     
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Text(
-            text = "TOP APPLICATION SIGNATURES",
-            style = MaterialTheme.typography.labelLarge,
-            color = Color.Gray
-        )
+        if (showHeader) {
+            Text(
+                text = "TOP APPLICATION SIGNATURES",
+                style = MaterialTheme.typography.labelLarge,
+                color = Color.Gray,
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+            )
+        }
         
-        LazyRow(
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
-            contentPadding = PaddingValues(horizontal = 4.dp)
-        ) {
-            items(sortedApps, key = { it.packageName }) { app ->
-                AppSignatureTile(
-                    app = app,
-                    onClick = { onAppClick(app.packageName) }
-                )
+        if (sortedApps.isEmpty()) {
+            Text(
+                "NO ACTIVITY DETECTED",
+                style = MaterialTheme.typography.labelSmall,
+                color = Color.DarkGray,
+                modifier = Modifier.padding(16.dp)
+            )
+        } else {
+            LazyRow(
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                contentPadding = PaddingValues(horizontal = 16.dp)
+            ) {
+                items(sortedApps, key = { it.packageName }) { app ->
+                    AppSignatureTile(
+                        app = app,
+                        onClick = { onAppClick(app.packageName) }
+                    )
+                }
             }
         }
     }
@@ -167,50 +215,37 @@ fun AppSignatureTile(
 }
 
 @Composable
-fun LiveNetworkStream(
-    events: List<ConnectionEventEntity>,
-    onAppClick: (String) -> Unit
-) {
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    text = "LIVE NETWORK STREAM",
-                    style = MaterialTheme.typography.labelLarge,
-                    color = Color.Gray
-                )
-                Spacer(modifier = Modifier.width(8.dp))
-                PulseIndicator()
-            }
-            
-            IconButton(onClick = { /* Stub */ }, modifier = Modifier.size(24.dp)) {
-                Icon(Icons.Default.FilterList, contentDescription = "Filter", tint = Color.Gray)
-            }
+fun LiveStreamHeader() {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                text = "LIVE NETWORK STREAM",
+                style = MaterialTheme.typography.labelLarge,
+                color = Color.Gray
+            )
+            Spacer(modifier = Modifier.width(8.dp))
+            PulseIndicator()
         }
+        
+        IconButton(onClick = { /* Stub */ }, modifier = Modifier.size(24.dp)) {
+            Icon(Icons.Default.FilterList, contentDescription = "Filter", tint = Color.Gray)
+        }
+    }
+}
 
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp),
-            horizontalArrangement = Arrangement.SpaceBetween
-        ) {
-            Text("TARGET DOMAIN / IP", style = MaterialTheme.typography.labelSmall, color = Color.DarkGray, modifier = Modifier.weight(1f))
-            Text("LOC", style = MaterialTheme.typography.labelSmall, color = Color.DarkGray, modifier = Modifier.width(40.dp))
-            Text("STATUS", style = MaterialTheme.typography.labelSmall, color = Color.DarkGray, modifier = Modifier.width(50.dp))
-        }
-
-        Column(modifier = Modifier.fillMaxWidth().animateContentSize()) {
-            events.take(10).forEach { event ->
-                key(event.connectionId) {
-                    NetworkEventRow(
-                        event = event,
-                        onClick = { onAppClick(event.packageName) }
-                    )
-                }
-            }
-        }
+@Composable
+fun LiveStreamTableHeader() {
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp),
+        horizontalArrangement = Arrangement.SpaceBetween
+    ) {
+        Text("TARGET DOMAIN / IP", style = MaterialTheme.typography.labelSmall, color = Color.DarkGray, modifier = Modifier.weight(1f))
+        Text("LOC", style = MaterialTheme.typography.labelSmall, color = Color.DarkGray, modifier = Modifier.width(40.dp))
+        Text("STATUS", style = MaterialTheme.typography.labelSmall, color = Color.DarkGray, modifier = Modifier.width(50.dp))
     }
 }
 
@@ -295,26 +330,30 @@ fun PulseIndicator() {
 fun MissionControlHeader(
     startTime: Long?,
     isCapturing: Boolean,
-    onToggle: (Boolean) -> Unit
+    showDenial: Boolean,
+    onToggle: (Boolean) -> Unit,
+    onRetry: () -> Unit
 ) {
-    var uptimeMillis by remember { mutableLongStateOf(0L) }
-    
-    LaunchedEffect(startTime) {
-        if (startTime != null) {
-            while (true) {
-                uptimeMillis = System.currentTimeMillis() - startTime
-                delay(1000)
-            }
-        } else {
-            uptimeMillis = 0L
-        }
-    }
-
-    val uptimeText = formatUptimeValue(uptimeMillis)
     val statusText = if (isCapturing) "ONLINE" else "OFFLINE"
     val statusColor = if (isCapturing) NeonGreen else Color.Gray
 
     Column {
+        if (showDenial) {
+            Surface(
+                color = AmberWarning.copy(alpha = 0.1f),
+                contentColor = AmberWarning,
+                border = BorderStroke(1.dp, AmberWarning),
+                modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp),
+                shape = MaterialTheme.shapes.small
+            ) {
+                Row(modifier = Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Default.Warning, contentDescription = "Error", modifier = Modifier.size(16.dp))
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("VPN PERMISSION DENIED. TAP TO RETRY.", style = MaterialTheme.typography.labelSmall, modifier = Modifier.clickable { onRetry() })
+                }
+            }
+        }
+
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
@@ -334,12 +373,37 @@ fun MissionControlHeader(
                 )
             )
         }
-        Text(
-            text = "SYS_STATUS: $statusText // UPTIME: $uptimeText",
-            style = MaterialTheme.typography.labelSmall,
-            color = statusColor
-        )
+        Row {
+            Text(
+                text = "SYS_STATUS: $statusText // UPTIME: ",
+                style = MaterialTheme.typography.labelSmall,
+                color = statusColor
+            )
+            UptimeText(startTime, statusColor)
+        }
     }
+}
+
+@Composable
+fun UptimeText(startTime: Long?, color: Color) {
+    var uptimeMillis by remember { mutableLongStateOf(0L) }
+    
+    LaunchedEffect(startTime) {
+        if (startTime != null) {
+            while (true) {
+                uptimeMillis = System.currentTimeMillis() - startTime
+                delay(1000)
+            }
+        } else {
+            uptimeMillis = 0L
+        }
+    }
+    
+    Text(
+        text = formatUptimeValue(uptimeMillis),
+        style = MaterialTheme.typography.labelSmall,
+        color = color
+    )
 }
 
 @Composable
@@ -424,18 +488,6 @@ fun StatCard(
     }
 }
 
-private fun formatUptimeValue(millis: Long): String {
-    val seconds = (millis / 1000) % 60
-    val minutes = (millis / (1000 * 60)) % 60
-    val hours = (millis / (1000 * 60 * 60))
-    return "%02d:%02d:%02d".format(hours, minutes, seconds)
-}
-
-private fun formatBytesToGB(bytes: Long): String {
-    val gb = bytes.toDouble() / (1024 * 1024 * 1024)
-    return "%.3f GB".format(gb)
-}
-
 @Composable
 fun IntelScreen(viewModel: IntelViewModel) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
@@ -444,7 +496,7 @@ fun IntelScreen(viewModel: IntelViewModel) {
     Column(modifier = Modifier.fillMaxSize()) {
         TopApplicationSignatures(
             summaries = allApps,
-            onAppClick = { viewModel.selectApp(it) }
+            onAppClick = { packageName -> viewModel.selectApp(packageName) }
         )
         
         HorizontalDivider(color = Color.DarkGray, thickness = 1.dp)
@@ -480,7 +532,7 @@ fun IntelScreen(viewModel: IntelViewModel) {
                     }
 
                     item {
-                        NetworkTrafficChartPanel()
+                        NetworkTrafficChartPanel(uiState.dataSentBytes, uiState.dataReceivedBytes)
                     }
 
                     item {
@@ -568,8 +620,12 @@ fun TrafficDataCard(
 }
 
 @Composable
-fun NetworkTrafficChartPanel() {
+fun NetworkTrafficChartPanel(sentBytes: Long, receivedBytes: Long) {
     var selectedRange by remember { mutableStateOf("1H") }
+    
+    val seed = remember(sentBytes, receivedBytes, selectedRange) { 
+        (sentBytes xor receivedBytes).toInt() 
+    }
     
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -612,13 +668,17 @@ fun NetworkTrafficChartPanel() {
             
             Spacer(modifier = Modifier.height(24.dp))
             
-            NetworkTrafficCanvas()
+            NetworkTrafficCanvas(seed)
         }
     }
 }
 
 @Composable
-fun NetworkTrafficCanvas() {
+fun NetworkTrafficCanvas(seed: Int) {
+    val livePath = remember { Path() }
+    val ghostPath = remember { Path() }
+    val random = remember(seed) { java.util.Random(seed.toLong()) }
+    
     Canvas(
         modifier = Modifier
             .fillMaxWidth()
@@ -632,23 +692,30 @@ fun NetworkTrafficCanvas() {
         drawLine(gridColor, start = androidx.compose.ui.geometry.Offset(0f, height * 0.5f), end = androidx.compose.ui.geometry.Offset(width, height * 0.5f), strokeWidth = 1f)
         drawLine(gridColor, start = androidx.compose.ui.geometry.Offset(0f, height * 0.75f), end = androidx.compose.ui.geometry.Offset(width, height * 0.75f), strokeWidth = 1f)
 
-        val ghostPath = Path().apply {
-            moveTo(0f, height * 0.7f)
-            quadraticBezierTo(width * 0.25f, height * 0.5f, width * 0.5f, height * 0.75f)
-            quadraticBezierTo(width * 0.75f, height * 0.9f, width, height * 0.6f)
+        ghostPath.reset()
+        ghostPath.moveTo(0f, height * (0.5f + (random.nextFloat() - 0.5f) * 0.4f))
+        for (i in 1..4) {
+            ghostPath.quadraticBezierTo(
+                width * (i - 0.5f) / 4f, height * random.nextFloat(),
+                width * i / 4f, height * (0.5f + (random.nextFloat() - 0.5f) * 0.4f)
+            )
         }
+        
         drawPath(
             path = ghostPath,
             color = Color.Gray.copy(alpha = 0.3f),
             style = Stroke(width = 2.dp.toPx())
         )
 
-        val livePath = Path().apply {
-            moveTo(0f, height * 0.8f)
-            quadraticBezierTo(width * 0.2f, height * 0.4f, width * 0.4f, height * 0.6f)
-            quadraticBezierTo(width * 0.6f, height * 0.2f, width * 0.8f, height * 0.5f)
-            lineTo(width, height * 0.3f)
+        livePath.reset()
+        livePath.moveTo(0f, height * (0.7f + (random.nextFloat() - 0.5f) * 0.4f))
+        for (i in 1..4) {
+            livePath.quadraticBezierTo(
+                width * (i - 0.5f) / 4f, height * random.nextFloat(),
+                width * i / 4f, height * (0.7f + (random.nextFloat() - 0.5f) * 0.4f)
+            )
         }
+        
         drawPath(
             path = livePath,
             color = NeonGreen,
@@ -767,6 +834,47 @@ fun BehavioralAnalysisCard(baseline: BaselineSummary?, alerts: List<AlertEvent>)
                     style = MaterialTheme.typography.bodySmall,
                     color = Color.White
                 )
+            }
+        }
+    }
+}
+
+private fun formatUptimeValue(millis: Long): String {
+    val seconds = (millis / 1000) % 60
+    val minutes = (millis / (1000 * 60)) % 60
+    val hours = (millis / (1000 * 60 * 60))
+    return "%02d:%02d:%02d".format(hours, minutes, seconds)
+}
+
+private fun formatBytesToGB(bytes: Long): String {
+    val gb = bytes.toDouble() / (1024 * 1024 * 1024)
+    return "%.3f GB".format(gb)
+}
+
+@Composable
+fun AlertsScreen(viewModel: AlertsViewModel) {
+    val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    
+    Box(modifier = Modifier.fillMaxSize().padding(16.dp)) {
+        Column {
+            Text("NETSHADOW_ALERTS", style = MaterialTheme.typography.headlineMedium)
+            Spacer(modifier = Modifier.height(8.dp))
+            Text("Unread: ${uiState.unreadCount}", style = MaterialTheme.typography.titleMedium)
+            
+            Spacer(modifier = Modifier.height(16.dp))
+            
+            if (uiState.alerts.isEmpty()) {
+                Text("No active threats detected.")
+            } else {
+                uiState.alerts.forEach { alert ->
+                    Card(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
+                        Column(modifier = Modifier.padding(8.dp)) {
+                            Text(text = alert.packageName, style = MaterialTheme.typography.labelSmall)
+                            Text(text = alert.message, style = MaterialTheme.typography.bodyLarge)
+                            Text(text = "Severity: ${alert.severity}", style = MaterialTheme.typography.bodySmall)
+                        }
+                    }
+                }
             }
         }
     }
