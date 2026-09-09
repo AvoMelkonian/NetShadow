@@ -4,23 +4,25 @@ import android.Manifest
 import android.app.Activity
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.net.Uri
 import android.net.VpnService
 import android.os.Build
 import android.os.Bundle
+import android.os.PowerManager
+import android.provider.Settings
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.layout.*
-import androidx.compose.material3.*
 import androidx.compose.runtime.*
-import androidx.compose.ui.Alignment
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
+import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.netshadow.capture.vpn.NetShadowVpnService
+import com.example.netshadow.data.model.AppSummary
 import com.example.netshadow.ui.theme.NetShadowTheme
+
+import com.example.netshadow.ui.navigation.MainNavigationContainer
 
 class MainActivity : ComponentActivity() {
 
@@ -30,7 +32,7 @@ class MainActivity : ComponentActivity() {
         ActivityResultContracts.StartActivityForResult()
     ) { result ->
         if (result.resultCode == Activity.RESULT_OK) {
-            checkNotificationPermissionAndStart()
+            checkBatteryOptimizationAndStart()
         } else {
             showDenialUI.value = true
         }
@@ -51,27 +53,58 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+        
+        val repository = (application as NetShadowApp).trafficRepository
+
         setContent {
             NetShadowTheme {
-                Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
-                    MainScreen(
-                        modifier = Modifier.padding(innerPadding),
-                        showDenial = showDenialUI.value,
-                        onStartCapture = { prepareVpn() },
-                        onRetry = {
-                            showDenialUI.value = false
+                MainNavigationContainer(
+                    repository = repository,
+                    showDenial = showDenialUI.value,
+                    onToggleCapture = { active ->
+                        if (active) {
                             prepareVpn()
+                        } else {
+                            stopVpnService()
                         }
-                    )
-                }
+                    },
+                    onRetry = {
+                        showDenialUI.value = false
+                        prepareVpn()
+                    }
+                )
             }
         }
+    }
+
+    private fun stopVpnService() {
+        val intent = Intent(this, NetShadowVpnService::class.java).apply {
+            action = "com.example.netshadow.STOP_VPN"
+        }
+        startService(intent)
+        Toast.makeText(this, "VPN Service Stopped", Toast.LENGTH_SHORT).show()
     }
 
     private fun prepareVpn() {
         val intent = VpnService.prepare(this)
         if (intent != null) {
             vpnPrepareLauncher.launch(intent)
+        } else {
+            checkBatteryOptimizationAndStart()
+        }
+    }
+
+    private fun checkBatteryOptimizationAndStart() {
+        val pm = getSystemService(POWER_SERVICE) as PowerManager
+        if (!pm.isIgnoringBatteryOptimizations(packageName)) {
+            // Show explanation then request
+            Toast.makeText(this, "Please disable battery optimization for NetShadow to ensure stable monitoring.", Toast.LENGTH_LONG).show()
+            val intent = Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
+                data = Uri.parse("package:$packageName")
+            }
+            startActivity(intent)
+            // We proceed anyway, but user will see the system dialog
+            checkNotificationPermissionAndStart()
         } else {
             checkNotificationPermissionAndStart()
         }
@@ -97,34 +130,5 @@ class MainActivity : ComponentActivity() {
         val intent = Intent(this, NetShadowVpnService::class.java)
         startForegroundService(intent)
         Toast.makeText(this, "VPN Service Started", Toast.LENGTH_SHORT).show()
-    }
-}
-
-@Composable
-fun MainScreen(
-    modifier: Modifier = Modifier,
-    showDenial: Boolean,
-    onStartCapture: () -> Unit,
-    onRetry: () -> Unit
-) {
-    Column(
-        modifier = modifier.fillMaxSize(),
-        verticalArrangement = Arrangement.Center,
-        horizontalAlignment = Alignment.CenterHorizontally
-    ) {
-        if (showDenial) {
-            Text(
-                text = "VPN permission is required to capture network traffic.",
-                color = MaterialTheme.colorScheme.error,
-                modifier = Modifier.padding(16.dp)
-            )
-            Button(onClick = onRetry) {
-                Text("Retry")
-            }
-        } else {
-            Button(onClick = onStartCapture) {
-                Text("Start Capture")
-            }
-        }
     }
 }
