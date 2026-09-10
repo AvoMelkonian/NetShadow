@@ -11,7 +11,7 @@ import com.example.netshadow.data.entity.AppBaselineEntity
 import com.example.netshadow.data.entity.ConnectionEventEntity
 import com.example.netshadow.data.model.Direction
 import com.example.netshadow.data.model.Protocol
-import com.example.netshadow.data.repository.ExpectedType
+import com.example.netshadow.data.model.ExpectedType
 import com.example.netshadow.data.repository.TrafficRepository
 import com.example.netshadow.intelligence.dns.DnsResolver
 import kotlinx.coroutines.delay
